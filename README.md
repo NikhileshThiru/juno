@@ -23,6 +23,7 @@ Mom texts Juno a photo of her paperwork. That's the whole interface: no app to i
 5. **Nudges, gently.** At most two reminders per step, each with the number and the script.
 6. **Loops in family.** Mom adds her daughter and picks what she can see with a native iMessage poll. If Mom has *read* both reminders and still hasn't booked, Juno quietly asks her daughter to help. When the daughter texts "booked it Thu 9am", Mom's card updates to **Booked · with Tvisha**, and Mom gets the calendar invite.
 7. **Makes lab results readable.** An interactive body map: tap an organ to see each value on a bar against the range printed on the report, plus a list of questions to bring to the doctor.
+8. **Answers questions about her own care.** "When is my heart appointment?", "Can I eat before my blood test?", "What's Eliquis for?", "What was my potassium?", "Show me my list." Answers come from her own plan and papers, mostly instantly with no AI call, and her daughter can ask about Mom the same way.
 
 **Juno never books appointments and never gives medical advice.** It explains what the paper says, makes the next steps easy, and makes sure they happen.
 
@@ -75,7 +76,7 @@ Juno runs on [Photon's Spectrum SDK](https://github.com/photon-hq/spectrum-ts) a
 
 ## Safety by design
 
-- **Warning signs always come first** in a discharge explanation.
+- **Warning signs always come first** in a discharge explanation, and a message like "I have chest pain" gets an immediate *call 911* reply (and a heads-up to family) instead of a chat.
 - **No diagnoses, no treatment advice.** Every explanation points back to the doctor or pharmacist.
 - **Code decides the important things:** lab colors, organ mapping, reminder timing, and escalation are deterministic code, not model output.
 - **Fictional data only.** Every document, name, and number in this repo is made up (555-01xx phone numbers, "SAMPLE DOCUMENT" on every page).
