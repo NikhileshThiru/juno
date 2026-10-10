@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+node_modules/
+data/
+juno.db
+juno.db-*
+.venv/
+__pycache__/
+.DS_Store
+
+# internal build notes (has teammates' phone numbers)
+plan.md

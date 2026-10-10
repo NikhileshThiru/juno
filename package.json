@@ -1,0 +1,31 @@
+{
+  "name": "juno",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "tunnel": "bun scripts/tunnel.ts",
+    "typecheck": "tsc --noEmit",
+    "doctor": "bun scripts/doctor.ts",
+    "photon": "photon",
+    "admin": "bun scripts/admin.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.28.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "hono": "^4.13.13",
+    "jpeg-js": "^0.4.4",
+    "spectrum-ts": "^12.10.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@photon-ai/cli": "2.2.0",
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  },
+  "patchedDependencies": {
+    "@spectrum-ts/imessage@12.10.1": "patches/@spectrum-ts%2Fimessage@12.10.1.patch"
+  }
+}
