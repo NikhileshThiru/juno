@@ -171,5 +171,7 @@ export function latestPoll(userId: string, kind?: string): { msg_id: string; kin
 
 export function resetAll() {
   for (const t of ["care_links", "documents", "todos", "outbound", "cards", "polls", "settings"]) db.exec(`DELETE FROM ${t}`);
-  db.exec("UPDATE users SET onboarded = 0, role = NULL");
+  // Forget names too, so a rerun starts like a first conversation.
+  db.exec("UPDATE users SET onboarded = 0, role = NULL, name = NULL");
+  setSetting("reset_at", String(Date.now())); // the dashboard hides everything before this
 }

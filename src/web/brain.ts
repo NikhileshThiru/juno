@@ -5,7 +5,7 @@ import { Hono, type Context, type Next } from "hono";
 import { html, raw } from "hono/html";
 import { streamSSE } from "hono/streaming";
 import { fmtShort, fmtWhen, now, offsetMs } from "../clock.ts";
-import { caregiversOf, db, todosFor, type Doc, type User } from "../db.ts";
+import { caregiversOf, db, getSetting, todosFor, type Doc, type User } from "../db.ts";
 import { counters, recentEvents, subscribe, type FeedEvent } from "../events.ts";
 import { bandOf } from "../labs.ts";
 import { json } from "./tracker.ts";
@@ -30,8 +30,19 @@ function names(): Map<string, string> {
   return new Map(users.map((u) => [u.id, u.name ?? (u.role === "caregiver" ? "Caregiver" : "Mom")]));
 }
 
+/** After a reset, start clean: hide older feed events and zero the counters. */
+let lastReset = 0;
+function resetAt(): number {
+  const r = Number(getSetting("reset_at") ?? 0);
+  if (r !== lastReset) {
+    lastReset = r;
+    counters.gemini = counters.cached = counters.local = 0;
+  }
+  return r;
+}
+
 function present(e: FeedEvent): FeedEvent | null {
-  if (HIDDEN.has(e.emoji)) return null;
+  if (HIDDEN.has(e.emoji) || e.t < resetAt()) return null;
   let msg = e.msg;
   for (const [id, name] of names()) msg = msg.split(id).join(name);
   msg = msg.replace(PHONE, "•••");
@@ -84,6 +95,7 @@ function docSummary(d: Doc): { title: string; lines: string[]; chips: string[] }
 }
 
 function state() {
+  resetAt();
   const nm = names();
   const patients = (db.query("SELECT DISTINCT user_id FROM todos").all() as { user_id: string }[]).map(({ user_id }) => ({
     name: nm.get(user_id) ?? "Mom",

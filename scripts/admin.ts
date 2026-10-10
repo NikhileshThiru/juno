@@ -11,7 +11,8 @@ if (cmd === "skip") {
   console.log(`⏩ virtual clock → ${fmtWhen(now())} (nudges fire on the next tick, ≤10s)`);
 } else if (cmd === "reset") {
   resetAll();
-  console.log("🧹 reset (restart Juno too if you want to clear in-memory chat caches)");
+  console.log("🧹 Reset: no documents, to-dos, care circle, or reminders; clock back to now.");
+  console.log("   Next: delete the Juno chat on both phones and reload localhost:3000/brain.");
 } else {
   console.log(`🕐 ${fmtWhen(now())}`);
   for (const t of db.query("SELECT * FROM todos ORDER BY user_id, sort").all() as Todo[])
