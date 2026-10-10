@@ -34,21 +34,28 @@ The photo is cleaned up before any AI sees it. [`cv/flatten.py`](cv/flatten.py) 
 
 Then Gemini reads all the pages of a burst in one call and returns strict JSON, validated with zod. The prompts follow three rules: extract only what's on the page, never invent a phone number or date, and use plain language.
 
-<table>
-<tr>
-<td width="46%"><img src="docs/screenshots/labs-full.png" alt="Full lab results view with a body map and questions for the doctor"/></td>
-<td>
-
 ### Lab results, made legible
 
 - Each test is mapped to an organ by a **fixed table in code** (kidneys, liver, heart & vessels, thyroid, blood sugar, blood & general), never by the model.
 - Colors are **computed from the reference range printed on the report**: in range, slightly outside (≤10% past the edge), or outside. The model never decides what's "good" or "bad".
 - Every test gets a one-line, neutral description of *what it measures*, with no interpretation.
-- Results outside the range become **questions for the doctor**, and they're added as notes on the upcoming primary-care visit.
+- Results outside the range become **questions for the doctor** (printable), and they're added as notes on the upcoming primary-care visit.
 
-</td>
-</tr>
-</table>
+## Beyond the bubble
+
+Tap **Full care plan** or **Full view** and Juno opens a full-screen page. The **care plan** puts warning signs first, then a timeline of every visit (call, add to calendar, what to say) and the medicines with NEW / STOP badges and a morning/evening schedule. The family gets the same plan from their side of the conversation. The **lab view** animates the body map, puts every result on a range bar, and lists the questions to bring to the doctor.
+
+<p align="center"><img src="docs/screenshots/full-pages.png" alt="The care plan page and the full lab results page" width="720"/></p>
+
+Links never arrive as gray URLs: Juno draws a **preview image for every link** on the server (`og:image`), so iMessage shows a designed card.
+
+<p align="center"><img src="docs/screenshots/link-previews.jpg" alt="Link previews for the care plan and the lab results as they appear in iMessage" width="860"/></p>
+
+## Juno's brain (the laptop view)
+
+A live dashboard for demos at `localhost:3000/brain`: every step as it happens, the photo → detected page → flattened scan with what Gemini read, and the care board moving from To do → Booked → Done. It only answers on the laptop itself, and phone numbers are replaced by names before anything reaches the screen.
+
+<p align="center"><img src="docs/screenshots/brain.jpg" alt="Juno's live dashboard: activity feed, document reading, and care board" width="860"/></p>
 
 ## Built for iMessage with Photon Spectrum
 
@@ -63,6 +70,7 @@ Juno runs on [Photon's Spectrum SDK](https://github.com/photon-hq/spectrum-ts) a
 | **Tapbacks** | ❤️ on a reminder → "Did you book it? What day and time?"; ❓ → the number and script again. |
 | **Typing, mark-as-read, 👀, effects** | Feels like texting a person; confetti when the whole list is done. |
 | **Attachments** | Calendar invites (`.ics`) for every booked visit, with a reminder the day before. |
+| **Rich links** | The full care plan and lab view arrive as links with designed preview images. |
 | **Separate 1:1 chats** | The caregiver gets their own conversation with Juno, with updates and the ability to book for Mom. |
 
 ## Safety by design
@@ -95,7 +103,7 @@ src/
   gemini.ts         schemas + prompts; model fallback; photo-result cache
   vision.ts         runs cv/flatten.py (HEIC → JPEG via sips)
   flows/            documents · status (booked/done) · caregiver · nudges · admin
-  web/              tracker card · lab body map · theme · routes + card actions
+  web/              cards (tracker, body map) · care plan · link-preview images · dashboard · routes
   cards.ts          send or edit a live card (persisted sessions)
   labs.ts           bands + organ mapping (code, not LLM)
   db.ts, clock.ts   SQLite + virtual clock for demos
@@ -122,7 +130,7 @@ bun run tunnel          # terminal 1: public URL for the card pages
 bun run start           # terminal 2: Juno
 ```
 
-Then text Juno from a registered iPhone.
+Then text Juno from a registered iPhone, and open `http://localhost:3000/brain` on the laptop to watch it work.
 
 ### Demo script
 

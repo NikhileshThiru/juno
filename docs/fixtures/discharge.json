@@ -1,0 +1,97 @@
+{
+  "patient_first_name": "Anjali",
+  "facility": "Peachtree Regional Medical Center",
+  "visit_date": "2026-10-08",
+  "reason_plain": "You came to the hospital because of a fast, irregular heartbeat and shortness of breath.",
+  "summary_plain": "You were treated for a new fast and irregular heart rhythm called atrial fibrillation. Your doctors gave you medicines to control your heart rate, thin your blood, and raise low potassium levels. You are now stable and ready to continue your recovery at home.",
+  "warning_signs": [
+    "Chest pain or pressure",
+    "Fainting or passing out",
+    "Heart racing or pounding that will not slow down",
+    "Sudden weakness, numbness, face drooping, or trouble speaking",
+    "Unusual bleeding, black or tarry stools, or blood in urine",
+    "Severe shortness of breath"
+  ],
+  "medications": [
+    {
+      "name": "Metoprolol succinate ER",
+      "dose": "25 mg tablet",
+      "how_to_take_plain": "Take 1 tablet by mouth once daily.",
+      "status": "new"
+    },
+    {
+      "name": "Apixaban (Eliquis)",
+      "dose": "5 mg tablet",
+      "how_to_take_plain": "Take 1 tablet by mouth twice daily (morning and evening). Do not skip doses.",
+      "status": "new"
+    },
+    {
+      "name": "Potassium chloride ER",
+      "dose": "20 mEq tablet",
+      "how_to_take_plain": "Take 1 tablet by mouth once daily for 7 days with food, then stop.",
+      "status": "new"
+    },
+    {
+      "name": "Atorvastatin",
+      "dose": "20 mg tablet",
+      "how_to_take_plain": "Take 1 tablet by mouth nightly.",
+      "status": "continue"
+    },
+    {
+      "name": "Ibuprofen (Advil, Motrin)",
+      "dose": "200 mg",
+      "how_to_take_plain": "Do not take. Use acetaminophen for pain instead.",
+      "status": "stop"
+    }
+  ],
+  "todos": [
+    {
+      "title": "Pick up new prescriptions",
+      "category": "pharmacy",
+      "why_plain": "Your new prescriptions were sent electronically for you to start taking.",
+      "due_by_iso": "2026-10-08",
+      "due_text": "today",
+      "clinic_name": "CVS Pharmacy",
+      "provider": null,
+      "phone": "(404) 555-0163",
+      "prep_plain": null,
+      "call_script": "Hello, my name is Anjali Talwar. I am calling to see if my new discharge prescriptions are ready for pickup."
+    },
+    {
+      "title": "See primary care doctor",
+      "category": "primary_care",
+      "why_plain": "To review your hospital stay and your new medicines.",
+      "due_by_iso": "2026-10-15",
+      "due_text": "Within 7 days",
+      "clinic_name": "Midtown Family Medicine",
+      "provider": "Linda Chen, MD",
+      "phone": "(404) 555-0115",
+      "prep_plain": null,
+      "call_script": "Hello, my name is Anjali Talwar. I recently left the hospital and need to schedule a follow-up visit with Dr. Chen within 7 days."
+    },
+    {
+      "title": "Fasting blood test",
+      "category": "lab",
+      "why_plain": "To recheck potassium and kidney function while on the new medications.",
+      "due_by_iso": "2026-10-15",
+      "due_text": "In 1 week",
+      "clinic_name": "Peachtree Labs",
+      "provider": null,
+      "phone": "(404) 555-0178",
+      "prep_plain": "Nothing to eat or drink except water for 10\u201312 hours before the draw.",
+      "call_script": "Hello, my name is Anjali Talwar. I am calling to confirm my lab visit for a fasting blood test."
+    },
+    {
+      "title": "See a heart doctor",
+      "category": "specialist",
+      "why_plain": "For management of your new atrial fibrillation and anticoagulation.",
+      "due_by_iso": "2026-10-22",
+      "due_text": "Within 2 weeks",
+      "clinic_name": "Peachtree Heart Associates",
+      "provider": "Raymond Okafor, MD",
+      "phone": "(404) 555-0142",
+      "prep_plain": "Bring your medication list to this visit.",
+      "call_script": "Hello, my name is Anjali Talwar. I recently left the hospital and need to schedule a follow-up appointment with Dr. Okafor within 2 weeks."
+    }
+  ]
+}
