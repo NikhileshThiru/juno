@@ -65,11 +65,14 @@ export function localIntent(text: string, open: OpenTodo[]): Intent {
   const rel = text.match(/\b(daughter|son|wife|husband|sister|brother|niece|nephew|friend|grand(?:daughter|son))\b\s*([A-Z][a-z]+)?/i);
   if (/\b(add|include|loop in)\b/i.test(text) && (rel || phone))
     return { ...base, intent: "add_caregiver", caregiver_phone: phone, caregiver_relation: rel?.[1]?.toLowerCase() ?? null, caregiver_name: rel?.[2] ?? null };
+  if (/\b(show|pull up|send|see|open|view)\b.*\b(list|checklist|steps|to-?dos?|card|plan|labs?|results?|body map)\b/i.test(text)) return { ...base, intent: "show" };
+  if (/what('?s| is) left|how('?s| is) (it|everything|she|mom|my mom) (going|doing)|^status\b/i.test(text)) return { ...base, intent: "status" };
+  // Questions come before "booked"/"done": "did I book the heart doctor?" is a question.
+  if (/\?\s*$|^(what|what's|whats|when|where|which|who|why|how|is|are|do|does|did|can|could|should|will|would|tell me)\b/i.test(text.trim()))
+    return { ...base, intent: "question" };
   if (/\b(booked|book|scheduled|schedule|made an? appointment|set up|appointment (is|on))\b/i.test(text))
     return { ...base, intent: "booked", todo_id: matchOpenTodo(text, open), appt_datetime_iso: parseWhen(text) };
   if (/\b(done|went|finished|did it|picked up|completed)\b/i.test(text)) return { ...base, intent: "done", todo_id: matchOpenTodo(text, open) };
-  if (/how('?s| is)?\b.*\b(going|doing)|what('?s| is) left|status|update/i.test(text)) return { ...base, intent: "status" };
   if (/thank/i.test(text)) return { ...base, intent: "thanks" };
-  if (/\?\s*$|^(what|why|how|is|can|should)\b/i.test(text)) return { ...base, intent: "question" };
   return base;
 }

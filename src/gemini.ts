@@ -202,7 +202,7 @@ export const extractAppointment = (images: Image[]) =>
 // ---- inbound text intent ---------------------------------------------------
 
 export const Intent = z.object({
-  intent: z.enum(["booked", "done", "add_caregiver", "question", "status", "thanks", "smalltalk", "other"]),
+  intent: z.enum(["booked", "done", "add_caregiver", "question", "show", "status", "thanks", "smalltalk", "other"]),
   todo_id: z.string().nullable().describe("id of the matching open todo, or null if unclear"),
   appt_datetime_iso: z.string().nullable().describe("local time yyyy-mm-ddThh:mm, no timezone"),
   caregiver_phone: z.string().nullable(),
@@ -217,20 +217,31 @@ export const classifyText = (text: string, todos: { id: string; title: string; c
 ${nowContext()} Resolve relative dates/times ("Tue 2pm", "tomorrow at 9") to the NEXT such time, in America/New_York.
 Open todos (JSON): ${JSON.stringify(todos)}
 Intents: booked = they scheduled one of the todos (maybe "for her"); done = they completed/went to one; add_caregiver = they want to add a family member/helper;
-question = asking what something means; status = asking how things are going / what's left; thanks; smalltalk; other.
+question = any question about their care (appointments, medicines, results, instructions); show = asking to see their list, plan, or lab results;
+status = asking how things are going / what's left; thanks; smalltalk; other.
 Match todo_id by meaning (e.g. "heart doctor" → cardiology, "blood work" → lab). Message: """${text}"""`,
     },
   ], { light: true });
 
 // ---- questions -------------------------------------------------------------
 
-export const Answer = z.object({ answer: z.string().describe("max 3 short sentences, plain words") });
-export const answerQuestion = (question: string, context: string) =>
-  generate(Answer, [
-    {
-      text: `You are Juno. Answer the patient's question briefly using ONLY this context from their own paperwork. If the context doesn't cover it, say you don't see it in their papers.
-Never diagnose, never recommend treatment changes, never say a result is fine or dangerous. Do not add a sign-off; the app appends one.
+export const Answer = z.object({
+  answer: z.string().describe("1-3 short, warm sentences in plain words"),
+  medical: z.boolean().describe("true if the question is about a medicine, a symptom, or what a result means"),
+});
+export const answerQuestion = (question: string, context: string, family: boolean) =>
+  generate(
+    Answer,
+    [
+      {
+        text: `You are Juno, who helps a patient keep track of follow-up care after a hospital stay. ${family ? "A family member is asking about the patient: answer about her (she/her)." : "The patient is asking: answer in the second person."}
+Use ONLY this JSON for personal facts (appointments, medicines, results). If the answer isn't there, say you don't see it in the papers and suggest who to ask.
+For "what is <medicine>" you may add one neutral sentence about what it's generally used for.
+Never diagnose, never suggest changing a medicine or dose, never call a result good, bad, fine, or dangerous: only compare it to the printed range.
+If the question mentions anything on the warning_signs list, say the hospital's papers say to call 911 or go to the ER for it.
 Context: ${context}
 Question: """${question}"""`,
-    },
-  ], { light: true });
+      },
+    ],
+    { light: true },
+  );

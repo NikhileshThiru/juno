@@ -2,18 +2,20 @@
 // 2.5s (people send several pages or texts in a row) and handled as one turn.
 // Receipts, votes, and reactions are handled immediately and never replied to
 // generically.
-import { poll, type Message, type Space } from "spectrum-ts";
+import { poll, richlink, type Message, type Space } from "spectrum-ts";
 import { imessage } from "spectrum-ts/providers/imessage";
 import { DAY, now, parseLocalIso } from "./clock.ts";
 import { ASK_DOCTOR, copy } from "./copy.ts";
 import { db, getSetting, getTodo, getUser, latestDoc, markReadUpTo, savePoll, setSetting, todosFor, upsertUser } from "./db.ts";
 import { isAdmin } from "./env.ts";
-import { addCaregiver, handleCaregiverText, isCaregiver, onShareChosen, pendingShare } from "./flows/caregiver.ts";
+import { answer } from "./answer.ts";
+import { sendOrUpdateCard, tokenFor } from "./cards.ts";
+import { publicBaseUrl } from "./env.ts";
+import { addCaregiver, handleCaregiverText, isCaregiver, notifyCaregivers, onShareChosen, pendingShare } from "./flows/caregiver.ts";
 import { runAdmin } from "./flows/admin.ts";
 import { handlePhotos, type Photo } from "./flows/documents.ts";
 import { tick } from "./flows/nudges.ts";
 import { applyBooked, applyDone } from "./flows/status.ts";
-import { answerQuestion } from "./gemini.ts";
 import { understand } from "./intent.ts";
 import { matchOpenTodo } from "./parse.ts";
 import { log, logError } from "./log.ts";
@@ -175,11 +177,15 @@ async function handlePatientText(userId: string, text: string) {
       setSetting(`pending_relation:${userId}`, intent.caregiver_relation ?? "");
       return say(userId, `Of course 💛 Share ${intent.caregiver_name ?? "their"} contact card here, or type the number.`);
     case "question": {
-      const docs = ["discharge", "lab"].map((k) => latestDoc(userId, k)?.extracted_json).filter(Boolean).join("\n");
-      if (!docs) return say(userId, `I don't have any of your papers yet — send me a photo and I can help. ${ASK_DOCTOR}`);
-      const res = await answerQuestion(text, docs).catch(() => null);
-      return say(userId, res ? copy.ask(res.answer) : `I can't look that up right this second. ${ASK_DOCTOR}`);
+      if (!latestDoc(userId, "discharge") && !latestDoc(userId, "lab") && !todosFor(userId).length)
+        return say(userId, `I don't have any of your papers yet. Send me a photo and I can help. ${ASK_DOCTOR}`);
+      const res = await answer(userId, text, false);
+      await say(userId, res.text);
+      if (res.emergency) await notifyCaregivers(userId, { type: "urgent", text });
+      return;
     }
+    case "show":
+      return pullUp(userId, text);
     case "status":
       return say(userId, copy.status(todosFor(userId)));
     case "thanks":
@@ -223,4 +229,17 @@ async function onTapback(userId: string, targetId: string, emoji: string) {
     return say(userId, copy.tapbackBooked(todo));
   }
   return say(userId, copy.tapbackHelper(todo));
+}
+
+/** "Show me my list / labs / plan": send a fresh card (or the plan link) at the bottom of the chat. */
+async function pullUp(userId: string, text: string) {
+  const lab = latestDoc(userId, "lab");
+  if (/\b(labs?|results?|body map)\b/i.test(text) && lab) {
+    db.query("DELETE FROM cards WHERE user_id = ? AND kind = 'labs'").run(userId);
+    return sendOrUpdateCard(userId, "labs", lab.id, { caption: "Your lab results", subcaption: "Tap an organ to explore" });
+  }
+  if (/\bplan\b/i.test(text)) return send(userId, richlink(`${publicBaseUrl()}/plan/${tokenFor(userId)}`));
+  if (!todosFor(userId).length) return say(userId, copy.askForPhoto);
+  db.query("DELETE FROM cards WHERE user_id = ? AND kind = 'tracker'").run(userId);
+  return sendOrUpdateCard(userId, "tracker");
 }

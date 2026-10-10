@@ -8,6 +8,7 @@ import { copy } from "../copy.ts";
 import { caregiversOf, latestDoc, linkCaregiver, patientsOf, savePoll, setSetting, getSetting, setShareLevel, todosFor, upsertUser, type Todo } from "../db.ts";
 import type { Discharge } from "../gemini.ts";
 import { matchOpenTodo } from "../parse.ts";
+import { answer } from "../answer.ts";
 import { understand } from "../intent.ts";
 import { log } from "../log.ts";
 import { say, send } from "../spectrum.ts";
@@ -59,7 +60,12 @@ function summaryFor(patientId: string, level: "todos" | "everything") {
   return copy.cgSummary(patientName(patientId), todos, extra);
 }
 
-export type CareEvent = { type: "new_doc" } | { type: "booked"; todo: Todo; by: string } | { type: "done"; todo: Todo } | { type: "labs"; line: string };
+export type CareEvent =
+  | { type: "new_doc" }
+  | { type: "booked"; todo: Todo; by: string }
+  | { type: "done"; todo: Todo }
+  | { type: "labs"; line: string }
+  | { type: "urgent"; text: string };
 
 export async function notifyCaregivers(patientId: string, ev: CareEvent, except?: string) {
   for (const link of caregiversOf(patientId)) {
@@ -69,6 +75,7 @@ export async function notifyCaregivers(patientId: string, ev: CareEvent, except?
     if (ev.type === "booked") await say(link.caregiver_id, copy.cgBooked(p, ev.todo, ev.by));
     if (ev.type === "done") await say(link.caregiver_id, copy.cgDone(p, ev.todo));
     if (ev.type === "labs" && link.share_level === "everything") await say(link.caregiver_id, ev.line);
+    if (ev.type === "urgent") await say(link.caregiver_id, `⚠️ ${p} just texted me: "${ev.text}". I told her to call 911 or go to the ER now.`);
   }
 }
 
@@ -95,6 +102,8 @@ export async function handleCaregiverText(caregiverId: string, text: string) {
   }
   if (intent.intent === "done" && todo) return applyDone(patientId, todo.id, caregiverId);
   if (intent.intent === "status") return say(caregiverId, copy.cgSummary(patientName(patientId), todosFor(patientId)));
+  if (intent.intent === "show") return send(caregiverId, richlink(`${publicBaseUrl()}/plan/${tokenFor(patientId)}?as=family`));
+  if (intent.intent === "question") return say(caregiverId, (await answer(patientId, text, true)).text);
   if (intent.intent === "thanks") return say(caregiverId, "Anytime 💛");
   return say(caregiverId, `I'll keep you posted on ${patientName(patientId)}'s follow-ups 💛 If you book something for her, just text me the day and time.`);
 }
