@@ -44,15 +44,28 @@ export function trackerPage(todos: CardTodo[], opts: TrackerOpts) {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>Your next steps</title>
         <meta property="og:title" content="Your next steps" />
+        <script>if (!/[?&]still/.test(location.search)) document.documentElement.classList.add("anim");</script>
         <style>
           ${theme}
           body { padding:12px 12px 0; height:100vh; overflow:hidden; }
           body.tall { height:auto; overflow:auto; padding:18px 16px 40px; }
-          .bar { height:4px; border-radius:2px; background:var(--card2); margin:8px 0 9px; overflow:hidden; }
-          .bar i { display:block; height:100%; border-radius:2px; background:linear-gradient(90deg, var(--accent), var(--accent2)); }
-          .row { display:flex; align-items:center; gap:8px; width:100%; padding:7px 9px 7px 10px; margin-bottom:5px; background:var(--card); border-radius:12px; }
-          .row .dot { width:9px; height:9px; border-radius:50%; flex:none; }
-          .dot.todo { background:var(--todo); } .dot.booked { background:var(--booked); } .dot.done { background:var(--done); }
+          .ring { position:relative; width:30px; height:30px; flex:none; }
+          .ring svg { transform:rotate(-90deg); }
+          .ring circle { fill:none; stroke-width:3.5; }
+          .ring .fg { stroke:url(#rg); stroke-linecap:round; }
+          .anim .ring .fg { transition:stroke-dasharray .9s cubic-bezier(.2,.8,.2,1) .2s; }
+          .ring b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:800; color:var(--ink); }
+          .row { display:flex; align-items:center; gap:9px; width:100%; padding:7px 9px 7px 9px; margin-bottom:5px; background:var(--card); border-radius:12px; border:1.5px solid transparent; }
+          .anim .row { opacity:0; animation:rowin .45s ease-out forwards; animation-delay:var(--d); }
+          @keyframes rowin { from { opacity:0; transform:translateY(5px) } to { opacity:1; transform:none } }
+          .row.next { border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 9%, var(--card)); }
+          .row .tag { font-size:9.5px; font-weight:800; letter-spacing:.4px; color:var(--accent); text-transform:uppercase; }
+          .ico { width:20px; height:20px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+          .ico.todo { border:2.5px solid var(--todo); }
+          .ico.booked { background:var(--booked); } .ico.done { background:var(--done); }
+          .ico svg { width:12px; height:12px; }
+          .foot2 { display:flex; justify-content:center; margin-top:3px; }
+          .foot2 button { font-size:12.5px; font-weight:700; color:var(--accent); }
           .row .txt { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
           .row .t { font-size:14.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
           .row .d { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -108,18 +121,29 @@ const TRACKER_JS = String.raw`
 
   function toast(msg) { toastEl.textContent = msg; toastEl.className = "toast on"; setTimeout(function () { toastEl.className = "toast"; }, 2600); }
 
+  var ICON = {
+    todo: "",
+    booked: '<svg viewBox="0 0 12 12"><rect x="1.5" y="2.5" width="9" height="8" rx="1.5" fill="none" stroke="#fff" stroke-width="1.4"/><path d="M1.5 5h9M4 1.5v2M8 1.5v2" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    done: '<svg viewBox="0 0 12 12"><path d="M2.5 6.3l2.3 2.2 4.7-5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
   function header(title) {
-    return '<div class="hdr"><h1>' + title + '</h1><span class="pill">' + done() + " of " + D.todos.length + " done</span></div>" +
-      '<div class="bar"><i style="width:' + (D.todos.length ? Math.round(done() / D.todos.length * 100) : 0) + '%"></i></div>';
+    var C = 2 * Math.PI * 12, k = D.todos.length ? done() / D.todos.length : 0;
+    return '<div class="hdr"><h1>' + title + '</h1><span class="ring" title="steps done"><svg width="30" height="30">' +
+      '<defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent2)"/></linearGradient></defs>' +
+      '<circle r="12" cx="15" cy="15" stroke="var(--card2)"/>' + (k ? '<circle class="fg" r="12" cx="15" cy="15" style="stroke-dasharray:0 99" data-len="' + (k * C).toFixed(1) + '"/>' : "") +
+      "</svg><b>" + done() + "/" + D.todos.length + "</b></span></div>";
   }
 
   function list() {
     var sorted = D.todos.slice().sort(function (a, b) { return ORDER[a.status] - ORDER[b.status]; });
     var shown = sorted.slice(0, 4), more = sorted.length - shown.length;
-    return header("Your next steps") + shown.map(function (t) {
-      return '<button class="row ' + t.status + '" data-act="open" data-id="' + t.id + '"><span class="dot ' + t.status + '"></span>' +
-        '<span class="txt"><span class="t">' + esc(t.title) + '</span><span class="d">' + esc(sub(t)) + '</span></span><span class="chev">›</span></button>';
-    }).join("") + (more > 0 ? '<p class="more">+' + more + " more</p>" : "");
+    var nextId = (sorted.filter(function (t) { return t.status === "todo"; })[0] || {}).id;
+    return header("Your next steps") + '<div style="height:6px"></div>' + shown.map(function (t, i) {
+      var isNext = t.id === nextId;
+      return '<button class="row ' + t.status + (isNext ? " next" : "") + '" style="--d:' + (0.05 + i * 0.07) + 's" data-act="open" data-id="' + t.id + '"><span class="ico ' + t.status + '">' + ICON[t.status] + "</span>" +
+        '<span class="txt"><span class="t">' + esc(t.title) + '</span><span class="d">' + (isNext ? '<span class="tag">Next up</span> · ' : "") + esc(sub(t)) + '</span></span><span class="chev">›</span></button>';
+    }).join("") + '<div class="foot2"><button data-act="plan">' + (more > 0 ? "+" + more + " more · " : "") + "Full care plan ↗</button></div>";
   }
 
   // One row of buttons, pinned to the bottom of the bubble so they never get cut off.
@@ -172,6 +196,17 @@ const TRACKER_JS = String.raw`
     document.body.className = tall() ? "tall" : "";
     var t = view.id ? byId(view.id) : null;
     app.innerHTML = tall() ? full() : view.name === "detail" && t ? detail(t) : view.name === "book" && t ? book(t) : view.name === "say" && t ? say(t) : list();
+    requestAnimationFrame(function () { requestAnimationFrame(function () {
+      var r = document.querySelector(".ring .fg"); if (r) r.style.strokeDasharray = r.getAttribute("data-len") + " 99";
+    }); });
+  }
+
+  function openPlan() {
+    if (!D.token) return toast("This is a demo card");
+    fetch("/api/" + D.token + "/open", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "plan" }) }).catch(function () {});
+    var w = null;
+    try { w = window.open("/plan/" + D.token, "_blank"); } catch (e) {}
+    toast(w ? "Opening…" : "Sending you the full plan…");
   }
 
   function post(id, kind, body) {
@@ -184,6 +219,7 @@ const TRACKER_JS = String.raw`
     var el = e.target.closest("[data-act]");
     if (!el) return;
     var act = el.getAttribute("data-act"), id = el.getAttribute("data-id"), t = id && byId(id);
+    if (act === "plan") return openPlan();
     if (act === "list") view = { name: "list" };
     else if (act === "open") view = { name: "detail", id: id };
     else if (act === "book") view = { name: "book", id: id };

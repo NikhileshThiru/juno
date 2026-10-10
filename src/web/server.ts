@@ -2,29 +2,34 @@ import { Hono, type Context } from "hono";
 import { richlink } from "spectrum-ts";
 import { html } from "hono/html";
 import { log, logError } from "../log.ts";
+import { brain, localOnly } from "./brain.ts";
 import { demo } from "./demo.ts";
 import { tokenFor, userForToken } from "../cards.ts";
 import { DAY, fmtDay, fmtShort, fmtTime, now, parseLocalIso, toLocalIso } from "../clock.ts";
 import { caregiversOf, getDoc, getTodo, getUser, latestDoc, todosFor } from "../db.ts";
 import { publicBaseUrl } from "../env.ts";
 import { applyBooked, applyDone } from "../flows/status.ts";
-import type { Labs } from "../gemini.ts";
+import type { Discharge, Labs } from "../gemini.ts";
+import { buildIcs } from "../ics.ts";
 import { say, send } from "../spectrum.ts";
 import { group } from "../labs.ts";
 import { labsPage } from "./bodymap.ts";
+import { labsOg, planOg } from "./og.ts";
+import { planPage, type PlanData } from "./plan.ts";
 import { trackerPage, type CardTodo } from "./tracker.ts";
 
 export const web = new Hono();
 
 web.get("/health", (c) => c.text("ok"));
 web.route("/", demo);
+web.route("/", brain);
+web.use("/debug/*", localOnly);
+web.use("/file", localOnly);
 
-web.get("/c/tracker/:token", (c) => {
-  const token = c.req.param("token");
-  const userId = userForToken(token);
-  if (!userId) return c.text("Not found", 404);
+/** A patient's to-dos shaped for the card pages (names, not phone numbers, for helpers). */
+function cardTodos(userId: string): CardTodo[] {
   const helpers = new Map(caregiversOf(userId).map((l) => [l.caregiver_id, l.caregiver_name ?? "family"]));
-  const todos: CardTodo[] = todosFor(userId).map((t) => ({
+  return todosFor(userId).map((t) => ({
     id: t.id,
     title: t.title,
     status: t.status,
@@ -43,12 +48,24 @@ web.get("/c/tracker/:token", (c) => {
     prep: t.prep,
     notes: t.notes,
   }));
+}
+
+function visitInfo(userId: string) {
   const doc = latestDoc(userId, "discharge");
-  const visit = doc ? (JSON.parse(doc.extracted_json).visit_date as string | null) : null;
+  const d = doc ? (JSON.parse(doc.extracted_json) as Discharge) : null;
+  const visit = d?.visit_date ? `From the ${fmtShort(Date.parse(d.visit_date + "T12:00:00"))} hospital visit` : null;
+  return { d, visit, facility: d?.facility ?? null };
+}
+
+web.get("/c/tracker/:token", (c) => {
+  const token = c.req.param("token");
+  const userId = userForToken(token);
+  if (!userId) return c.text("Not found", 404);
+  const { visit } = visitInfo(userId);
   log("📱", `tracker card opened (${getUser(userId)?.name ?? userId}, v=${c.req.query("v")})`);
   return c.html(
-    trackerPage(todos, {
-      subtitle: visit ? `From your ${fmtShort(Date.parse(visit + "T12:00:00"))} hospital visit` : "Your follow-up care",
+    trackerPage(cardTodos(userId), {
+      subtitle: visit?.replace("From the", "From your") ?? "Your follow-up care",
       token,
       nowLocal: toLocalIso(now()),
       defaultLocal: toLocalIso(nextNineAm()),
@@ -62,7 +79,66 @@ function nextNineAm(): number {
   return nine > now() ? nine : nine + DAY;
 }
 
-// Lab results: the same page serves the bubble (/c/labs) and the full view (/labs).
+// ---- care plan (full screen, for Mom and for family) -----------------------
+
+function planData(userId: string, token: string, family: boolean): PlanData {
+  const name = getUser(userId)?.name ?? "Mom";
+  const { d, visit, facility } = visitInfo(userId);
+  const order = { booked: 0, todo: 1, done: 2 } as const;
+  const raw = todosFor(userId);
+  const steps = cardTodos(userId)
+    .map((t, i) => ({ t, row: raw[i]! }))
+    .sort((a, b) => order[a.t.status] - order[b.t.status] || (a.row.appt_at ?? a.row.due_at ?? 0) - (b.row.appt_at ?? b.row.due_at ?? 0))
+    .map(({ t }) => ({
+      ...t,
+      date: t.status === "booked" ? (t.when ?? "") : t.status === "done" ? "Done" : (t.due ?? ""),
+      ics: t.status === "booked" ? `/ics/${token}/${t.id}` : null,
+    }));
+  const done = steps.filter((s) => s.status === "done").length;
+  const next = steps.find((s) => s.status !== "done");
+  return {
+    title: family ? `${name}'s care plan` : "Your care plan",
+    subtitle: [visit?.replace("From the", family ? "From her" : "From your"), facility].filter(Boolean).join(" · ") || "Follow-up care",
+    reason: d?.reason_plain ?? null,
+    warnings: d?.warning_signs ?? [],
+    meds: (d?.medications ?? []).map((m) => ({ name: m.name, dose: m.dose, how: m.how_to_take_plain, status: m.status })),
+    steps,
+    circle: caregiversOf(userId).map((l) => ({ name: l.caregiver_name ?? "Family", share: l.share_level })),
+    family,
+    token,
+    ogImage: `${publicBaseUrl()}/og/plan/${token}?${family ? "as=family&" : ""}v=${done}-${steps.length}-${Date.now() % 100000}`,
+    ogDescription: `${done} of ${steps.length} steps done${next ? ` · Next: ${next.title.toLowerCase()} ${next.status === "booked" ? next.when : (next.due ?? "")}` : ""}`,
+  };
+}
+
+web.get("/plan/:token", (c) => {
+  const token = c.req.param("token");
+  const userId = userForToken(token);
+  if (!userId) return c.text("Not found", 404);
+  const family = c.req.query("as") === "family";
+  log("📱", `care plan opened (${family ? "family" : "patient"})`);
+  return c.html(planPage(planData(userId, token, family)));
+});
+
+web.get("/og/plan/:token", (c) => {
+  const token = c.req.param("token");
+  const userId = userForToken(token);
+  if (!userId) return c.text("Not found", 404);
+  const p = planData(userId, token, c.req.query("as") === "family");
+  const img = planOg({ title: p.title, subtitle: p.subtitle, steps: p.steps.map((s) => ({ title: s.title, status: s.status, date: s.status === "booked" ? (s.whenShort ?? s.date) : s.date })) });
+  return c.body(img, 200, { "content-type": "image/jpeg", "cache-control": "public, max-age=300" });
+});
+
+web.get("/ics/:token/:todoId", (c) => {
+  const userId = userForToken(c.req.param("token"));
+  const todo = getTodo(c.req.param("todoId"));
+  if (!userId || !todo || todo.user_id !== userId || !todo.appt_at) return c.text("Not found", 404);
+  const ics = buildIcs(todo);
+  return c.body(new Uint8Array(ics.data), 200, { "content-type": "text/calendar; charset=utf-8", "content-disposition": `inline; filename="${ics.name}"` });
+});
+
+// ---- lab results: the same page serves the bubble (/c/labs) and the full view (/labs)
+
 const labsRoute = (full: boolean) => (c: Context) => {
   const token = c.req.param("token")!;
   const userId = userForToken(token);
@@ -77,6 +153,7 @@ const labsRoute = (full: boolean) => (c: Context) => {
       token,
       docId: doc.id,
       fullUrl: `${publicBaseUrl()}/labs/${token}/${doc.id}`,
+      ogImage: `${publicBaseUrl()}/og/labs/${token}/${doc.id}`,
     }),
   );
 };
@@ -87,6 +164,15 @@ web.get("/c/labs/:docId", (c) => {
   return doc ? c.redirect(`/c/labs/${tokenFor(doc.user_id)}/${doc.id}${c.req.query("v") ? `?v=${c.req.query("v")}` : ""}`) : c.text("Not found", 404);
 });
 web.get("/labs/:token/:docId", labsRoute(true));
+
+web.get("/og/labs/:token/:docId", (c) => {
+  const userId = userForToken(c.req.param("token"));
+  const doc = getDoc(c.req.param("docId"));
+  if (!userId || !doc || doc.kind !== "lab" || doc.user_id !== userId) return c.text("Not found", 404);
+  const labs = JSON.parse(doc.extracted_json) as Labs;
+  const img = labsOg(group(labs.tests), { collected: labs.collected_date, doctor: labs.ordering_provider });
+  return c.body(img, 200, { "content-type": "image/jpeg", "cache-control": "public, max-age=3600" });
+});
 
 // ---- card actions (taps inside the iMessage bubble) ------------------------
 
@@ -107,27 +193,33 @@ web.post("/api/:token/todo/:id/:kind", async (c) => {
   return c.json({ ok: true });
 });
 
-// "Open full view": try a new tab from the bubble; if the full page doesn't
-// report itself opened within a few seconds, send the link as a message.
+// "Full view" / "Full plan": try a new tab from the bubble; if the page doesn't
+// report itself opened within a few seconds, send the link as a message (its
+// preview shows the og:image card).
 const openRequests = new Map<string, number>();
 const openedAt = new Map<string, number>();
+type OpenBody = { kind?: "labs" | "plan"; doc?: string };
+
 web.post("/api/:token/open", async (c) => {
-  const userId = userForToken(c.req.param("token"));
-  const { doc } = (await c.req.json().catch(() => ({}))) as { doc?: string };
-  if (!userId || !doc) return c.text("Not found", 404);
+  const token = c.req.param("token");
+  const userId = userForToken(token);
+  const { kind = "labs", doc } = (await c.req.json().catch(() => ({}))) as OpenBody;
+  if (!userId || (kind === "labs" && !doc)) return c.text("Not found", 404);
+  const key = `${kind}:${doc ?? ""}`;
   const requested = Date.now();
-  openRequests.set(doc, requested);
+  openRequests.set(key, requested);
   setTimeout(async () => {
-    if ((openedAt.get(doc) ?? 0) >= requested || openRequests.get(doc) !== requested) return;
-    log("🔗", `full view didn't open from the bubble; sending the link (${doc})`);
-    await say(userId, "Here's the full view — tap to open 👇").catch(() => {});
-    await send(userId, richlink(`${publicBaseUrl()}/labs/${c.req.param("token")}/${doc}`)).catch((err) => logError("send link", err));
+    if ((openedAt.get(key) ?? 0) >= requested || openRequests.get(key) !== requested) return;
+    log("🔗", `full ${kind} view didn't open from the bubble; sending the link`);
+    const url = kind === "plan" ? `${publicBaseUrl()}/plan/${token}` : `${publicBaseUrl()}/labs/${token}/${doc}`;
+    await say(userId, kind === "plan" ? "Here's your full care plan — tap to open 👇" : "Here's the full view — tap to open 👇").catch(() => {});
+    await send(userId, richlink(url)).catch((err) => logError("send link", err));
   }, 4000);
   return c.json({ ok: true });
 });
 web.post("/api/:token/opened", async (c) => {
-  const { doc } = (await c.req.json().catch(() => ({}))) as { doc?: string };
-  if (doc) openedAt.set(doc, Date.now());
+  const { kind = "labs", doc } = (await c.req.json().catch(() => ({}))) as OpenBody;
+  openedAt.set(`${kind}:${doc ?? ""}`, Date.now());
   return c.json({ ok: true });
 });
 

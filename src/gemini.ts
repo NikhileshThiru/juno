@@ -4,6 +4,7 @@ import { GoogleGenAI, type Part } from "@google/genai";
 import { z } from "zod";
 import { nowContext } from "./clock.ts";
 import { env } from "./env.ts";
+import { counters } from "./events.ts";
 import { log } from "./log.ts";
 
 // Free tier: 20 requests/day per model per Google project. Each teammate's key
@@ -43,6 +44,7 @@ async function generate<T extends z.ZodType>(schema: T, parts: Part[], opts: Opt
   delete (jsonSchema as Record<string, unknown>).$schema;
   const file = cacheFile(jsonSchema, parts);
   if (file && existsSync(file)) {
+    counters.cached++;
     log("💾", "Gemini cache hit (same photo as before)");
     return schema.parse(JSON.parse(readFileSync(file, "utf8")));
   }
@@ -72,6 +74,7 @@ async function callModels<T extends z.ZodType>(schema: T, jsonSchema: unknown, p
             ...(noThinking.has(model) ? {} : { thinkingConfig: { thinkingLevel: (opts.thinking ?? "minimal") as never } }),
           },
         });
+        counters.gemini++;
         log("🤖", `Gemini ${model}${CLIENTS.length > 1 ? ` (key ${ci + 1})` : ""} ${Date.now() - t}ms`);
         return schema.parse(JSON.parse(res.text ?? "null"));
       } catch (err) {

@@ -1,6 +1,8 @@
 // Care circle: Mom adds a family member, chooses what they see (native poll),
 // and they get a separate 1:1 chat with updates. They can book things for her.
-import { poll } from "spectrum-ts";
+import { poll, richlink } from "spectrum-ts";
+import { tokenFor } from "../cards.ts";
+import { publicBaseUrl } from "../env.ts";
 import { parseLocalIso } from "../clock.ts";
 import { copy } from "../copy.ts";
 import { caregiversOf, latestDoc, linkCaregiver, patientsOf, savePoll, setSetting, getSetting, setShareLevel, todosFor, upsertUser, type Todo } from "../db.ts";
@@ -39,6 +41,8 @@ export async function onShareChosen(patientId: string, caregiverId: string, leve
   const link = caregiversOf(patientId).find((l) => l.caregiver_id === caregiverId)!;
   await say(patientId, copy.shareSet(link.caregiver_name ?? "them", level));
   await say(caregiverId, summaryFor(patientId, level));
+  // Not the first message to them (the intro was), so a link is fine now.
+  await send(caregiverId, richlink(`${publicBaseUrl()}/plan/${tokenFor(patientId)}?as=family`));
 }
 
 function summaryFor(patientId: string, level: "todos" | "everything") {

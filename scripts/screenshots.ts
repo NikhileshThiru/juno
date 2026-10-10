@@ -32,7 +32,7 @@ const todos: CardTodo[] = [
 
 await Bun.write(`${SHOTS}/tracker.html`, String(await trackerPage(todos, { subtitle: "From your Oct 8 hospital visit", token: null, nowLocal: "2026-10-12T18:00", defaultLocal: "2026-10-13T09:00" })));
 const labs = JSON.parse(await Bun.file("docs/fixtures/labs.json").text()); // Gemini output for docs/labs.png
-await Bun.write(`${SHOTS}/labs.html`, String(await labsPage(group(labs.tests), { collected: "Oct 15, 2026", doctor: labs.ordering_provider, token: "demo", docId: "demo", fullUrl: "#" })));
+await Bun.write(`${SHOTS}/labs.html`, String(await labsPage(group(labs.tests), { collected: "Oct 15, 2026", doctor: labs.ordering_provider, token: "demo", docId: "demo", fullUrl: "#", ogImage: "" })));
 
 // Real OpenCV output for the first demo photo.
 await Bun.spawn([".venv/bin/python", "cv/flatten.py", "docs/photos/1-discharge-page1.jpg", `${SHOTS}/cv`]).exited;

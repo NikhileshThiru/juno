@@ -8,7 +8,7 @@ import { db, getSetting, setSetting } from "./db.ts";
 import { web } from "./web/server.ts";
 
 Bun.serve({ port: env.PORT, fetch: web.fetch });
-log("🌐", `web server on http://localhost:${env.PORT}`);
+log("🌐", `web server on http://localhost:${env.PORT} · Juno's brain: http://localhost:${env.PORT}/brain`);
 
 const spectrum = await bootSpectrum();
 log("💛", `Juno is listening on iMessage (project "${spectrum.config.name}")`);
