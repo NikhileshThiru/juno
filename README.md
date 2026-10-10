@@ -154,4 +154,7 @@ Then text Juno from a registered iPhone.
 
 Built during Hacklanta 2026. Uses the open-source [spectrum-ts](https://github.com/photon-hq/spectrum-ts) SDK, the Gemini API, OpenCV, Hono, and resvg. All documents, people, and medical data in this repository are fictional and for demonstration only.
 
-<!-- Team: add your names and links here -->
+## Team
+
+- **Nikhilesh Thiru** · [@NikhileshThiru](https://github.com/NikhileshThiru)
+- **Tvisha Talwar** · [@tvisha-t](https://github.com/tvisha-t)
