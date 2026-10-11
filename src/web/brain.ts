@@ -27,7 +27,7 @@ const PHONE = /(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g;
 
 function names(): Map<string, string> {
   const users = db.query("SELECT id, name, role FROM users").all() as Pick<User, "id" | "name" | "role">[];
-  return new Map(users.map((u) => [u.id, u.name ?? (u.role === "caregiver" ? "Caregiver" : "Mom")]));
+  return new Map(users.map((u) => [u.id, u.name ?? (u.role === "caregiver" ? "Caregiver" : u.role === "patient" ? "Mom" : "someone")]));
 }
 
 /** After a reset, start clean: hide older feed events and zero the counters. */
@@ -41,8 +41,29 @@ function resetAt(): number {
   return r;
 }
 
+/** The Spectrum (Photon iMessage SDK) feature behind each step, shown as a tag on the feed. */
+const SPECTRUM: [RegExp, string][] = [
+  [/^received [2-9]\d* photos/, "album message → one turn"],
+  [/^received 1 photo/, "attachment"],
+  [/^tracker card sent|^labs card sent/, "live app card"],
+  [/card updated in place/, "edit() in place"],
+  [/^card tap:/, "tap inside live card"],
+  [/^poll vote:/, "native poll"],
+  [/^caregiver .* linked/, "new 1:1 chat"],
+  [/^nudge \d/, "proactive message"],
+  [/read \d+ message\(s\) incl\. nudges/, "read receipt"],
+  [/^escalated .*both nudges read/, "read receipts → escalation"],
+  [/^escalated /, "proactive message"],
+  [/^booked: /, "card edit + .ics attachment"],
+  [/^tapback /, "tapback as input"],
+  [/didn't open from the bubble/, "rich link"],
+  [/^all done/, "message effect"],
+  [/^day-before reminder/, "proactive message"],
+];
+
 function present(e: FeedEvent): FeedEvent | null {
   if (HIDDEN.has(e.emoji) || e.t < resetAt()) return null;
+  const tag = SPECTRUM.find(([re]) => re.test(e.msg))?.[1];
   let msg = e.msg;
   for (const [id, name] of names()) msg = msg.split(id).join(name);
   msg = msg.replace(PHONE, "•••");
@@ -68,9 +89,11 @@ function present(e: FeedEvent): FeedEvent | null {
     [/^escalated (.+) to (.+) \(.+\)$/, (_, t, who) => `${who} asked to help with the ${t.toLowerCase()}`],
     [/^day-before reminder: (.+)$/, (_, t) => `Day-before reminder sent: ${t.toLowerCase()}`],
     [/^tapback (.+) on (\w+) for (.+)$/, (_, e, k, t) => `${e} tapback on a ${k === "nudge" ? "reminder" : "message"} → asked when the ${t.toLowerCase()} is`],
+    [/^all done → confetti$/, () => "Everything on the list is done 🎉"],
+    [/^full (\w+) view didn't open from the bubble; sending the link$/, (_, k) => `Sent the full ${k === "plan" ? "care plan" : "lab view"} as a link with a preview image`],
   ];
   for (const [re, fn] of rewrites) if (re.test(msg)) msg = msg.replace(re, fn as (...a: string[]) => string);
-  return { ...e, msg };
+  return { ...e, msg, ...(tag ? { tag } : {}) };
 }
 
 // ---- state ------------------------------------------------------------------
@@ -130,6 +153,9 @@ function state() {
 
 brain.get("/brain/state", (c) => c.json(state()));
 
+// Snapshot of the feed (screenshots use ?still: headless browsers wait on open streams).
+brain.get("/brain/recent", (c) => c.json(recentEvents().slice(-40).map(present).filter(Boolean)));
+
 brain.get("/brain/events", (c) =>
   streamSSE(c, async (stream) => {
     for (const e of recentEvents().slice(-40)) {
@@ -141,7 +167,7 @@ brain.get("/brain/events", (c) =>
       if (p) stream.writeSSE({ data: JSON.stringify(p) }).catch(() => {});
     });
     stream.onAbort(unsub);
-    while (!stream.aborted) await stream.sleep(15_000).then(() => stream.writeSSE({ event: "ping", data: "" }));
+    while (!stream.aborted) await stream.sleep(8_000).then(() => stream.writeSSE({ event: "ping", data: "" }));
   }),
 );
 
@@ -170,6 +196,8 @@ brain.get("/brain", (c) =>
           #feed { list-style:none; padding:0; overflow:auto; display:flex; flex-direction:column; gap:7px; }
           #feed li { display:flex; gap:10px; padding:9px 11px; background:#ffffff0a; border-radius:12px; animation:in .45s ease-out; }
           #feed li b { font-size:17px; } #feed time { margin-left:auto; color:#6f7890; font-size:11.5px; white-space:nowrap; }
+          #feed .tag { display:block; width:fit-content; margin-top:4px; font-style:normal; font-size:11px; font-weight:700; letter-spacing:.2px; color:#d8ccff;
+                       background:linear-gradient(135deg,#5b6cff40,#8b5cf640); border:1px solid #8b5cf655; padding:2px 8px; border-radius:99px; }
           @keyframes in { from { opacity:0; transform:translateY(-8px) } to { opacity:1; transform:none } }
           .pages { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
           .pages figure { margin:0; } .pages img { width:100%; aspect-ratio:3/4; object-fit:cover; border-radius:10px; background:#111; }
@@ -224,7 +252,7 @@ const BRAIN_JS = String.raw`
     if (shown[key]) return; // EventSource reconnects replay recent events
     shown[key] = 1;
     var li = document.createElement("li");
-    li.innerHTML = "<b>" + e.emoji + "</b><span>" + esc(e.msg) + "</span><time>" + new Date(e.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + "</time>";
+    li.innerHTML = "<b>" + e.emoji + "</b><span>" + esc(e.msg) + (e.tag ? '<em class="tag">Spectrum · ' + esc(e.tag) + "</em>" : "") + "</span><time>" + new Date(e.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }) + "</time>";
     feed.insertBefore(li, feed.firstChild);
     while (feed.children.length > 60) feed.removeChild(feed.lastChild);
   }
@@ -262,6 +290,10 @@ const BRAIN_JS = String.raw`
 
   function refresh() { fetch("/brain/state").then(function (r) { return r.json(); }).then(render).catch(function () {}); }
   render(window.S0);
+  if (/[?&]still/.test(location.search)) {
+    fetch("/brain/recent").then(function (r) { return r.json(); }).then(function (list) { list.forEach(add); });
+    return;
+  }
   var es = new EventSource("/brain/events");
   es.onmessage = function (m) { add(JSON.parse(m.data)); setTimeout(refresh, 250); };
   setInterval(refresh, 3000);

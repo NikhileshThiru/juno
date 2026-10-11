@@ -29,7 +29,10 @@ export async function applyDone(patientId: string, todoId: string, by: string) {
   const t = getTodo(todoId)!;
   await sendOrUpdateCard(patientId, "tracker");
   const all = todosFor(patientId);
-  if (all.length && all.every((x) => x.status === "done")) await send(patientId, effect(copy.allDone, imessage.effect.message.confetti));
+  if (all.length && all.every((x) => x.status === "done")) {
+    await send(patientId, effect(copy.allDone, imessage.effect.message.confetti));
+    log("🎉", "all done → confetti");
+  }
   else if (by === "self") await say(patientId, copy.done(t));
   await notifyCaregivers(patientId, { type: "done", todo: t }, by);
 }

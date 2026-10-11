@@ -145,7 +145,7 @@ const shots: [string, string, number, number, string?][] = [
 
 for (const [name, html, w, h, fmt] of shots) {
   const png = `${SHOTS}/${name}.png`;
-  const url = name === "brain" ? "http://localhost:3101/brain" : `file://${process.cwd()}/${SHOTS}/${name}-compose.html`;
+  const url = name === "brain" ? "http://localhost:3101/brain?still" : `file://${process.cwd()}/${SHOTS}/${name}-compose.html`;
   if (html) await Bun.write(`${SHOTS}/${name}-compose.html`, html);
   await Bun.spawn(
     [CHROME, "--headless=new", "--disable-gpu", "--hide-scrollbars", `--force-device-scale-factor=${name === "brain" ? 1.5 : 2}`, `--window-size=${w},${h}`,

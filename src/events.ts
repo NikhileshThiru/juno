@@ -1,7 +1,7 @@
 // In-process event bus for the laptop dashboard ("Juno's brain"): every log
 // line becomes a feed event, plus counters for how Juno understood things.
 type Listener = (e: FeedEvent) => void;
-export type FeedEvent = { t: number; emoji: string; msg: string };
+export type FeedEvent = { t: number; emoji: string; msg: string; tag?: string };
 
 const listeners = new Set<Listener>();
 const recent: FeedEvent[] = [];
