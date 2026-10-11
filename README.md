@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo-512.png" alt="Juno logo" width="96"/></p>
+
 <h1 align="center">Juno</h1>
 
 <p align="center"><b>Hospital paperwork → a clear plan → follow-ups that actually happen.<br/>All inside iMessage.</b></p>

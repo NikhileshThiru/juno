@@ -55,7 +55,7 @@ export function trackerPage(todos: CardTodo[], opts: TrackerOpts) {
           .ring .fg { stroke:url(#rg); stroke-linecap:round; }
           .anim .ring .fg { transition:stroke-dasharray .9s cubic-bezier(.2,.8,.2,1) .2s; }
           .ring b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:800; color:var(--ink); }
-          .row { display:flex; align-items:center; gap:9px; width:100%; padding:7px 9px 7px 9px; margin-bottom:5px; background:var(--card); border-radius:12px; border:1.5px solid transparent; }
+          .row { display:flex; align-items:center; gap:8px; width:100%; padding:7px 8px 7px 9px; margin-bottom:5px; background:var(--card); border-radius:12px; border:1.5px solid transparent; }
           .anim .row { opacity:0; animation:rowin .45s ease-out forwards; animation-delay:var(--d); }
           @keyframes rowin { from { opacity:0; transform:translateY(5px) } to { opacity:1; transform:none } }
           .row.next { border-color:color-mix(in srgb, var(--accent) 55%, transparent); background:color-mix(in srgb, var(--accent) 9%, var(--card)); }
@@ -67,7 +67,7 @@ export function trackerPage(todos: CardTodo[], opts: TrackerOpts) {
           .foot2 { display:flex; justify-content:center; margin-top:3px; }
           .foot2 button { font-size:12.5px; font-weight:700; color:var(--accent); }
           .row .txt { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
-          .row .t { font-size:14.5px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .row .t { font-size:14px; font-weight:650; letter-spacing:-.1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
           .row .d { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
           .row.done .t { color:var(--muted); text-decoration:line-through; }
           .row .chev { color:var(--muted); font-size:18px; line-height:1; }
