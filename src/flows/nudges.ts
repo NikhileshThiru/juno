@@ -79,3 +79,11 @@ async function dayBefore(t0: number) {
     log("⏰", `day-before reminder: ${t.title}`);
   }
 }
+
+/** Why a skip might do nothing: there are no to-dos to remind about yet. */
+export function skipHint(): string | null {
+  const open = (db.query("SELECT COUNT(*) n FROM todos WHERE status = 'todo' AND category != 'pharmacy'").get() as { n: number }).n;
+  if (open) return null;
+  const any = (db.query("SELECT COUNT(*) n FROM todos").get() as { n: number }).n;
+  return any ? "Nothing left to remind about: every step is booked or done." : "No to-dos yet. Mom needs to send the discharge photos (1 + 2) first; lab results don't create to-dos.";
+}

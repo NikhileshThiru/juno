@@ -6,7 +6,7 @@ import { caregiversOf, db, latestDoc, resetAll, type Todo } from "../db.ts";
 import { sendOrUpdateCard } from "../cards.ts";
 import { log } from "../log.ts";
 import { commands as phase1 } from "../phase1.ts";
-import { tick } from "./nudges.ts";
+import { skipHint, tick } from "./nudges.ts";
 
 type Run = (space: Space, args: string[], from: string) => Promise<void>;
 
@@ -17,7 +17,7 @@ const admin: Record<string, { help: string; run: Run }> = {
       const ms = parseDuration(arg ?? "");
       if (!ms) return void (await space.send("Usage: /skip 2d (or 12h, 30m)"));
       skip(ms);
-      await space.send(`⏩ Jumped ahead ${arg} (now ${fmtWhen(now())})`);
+      await space.send(`⏩ Jumped ahead ${arg} (now ${fmtWhen(now())})${skipHint() ? `\n⚠️ ${skipHint()}` : ""}`);
       log("⏩", `clock → ${fmtWhen(now())}`);
       await tick();
     },

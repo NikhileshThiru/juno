@@ -9,6 +9,9 @@ if (cmd === "skip") {
   if (!ms) throw new Error("usage: bun run admin skip 2d | 12h | 30m");
   skip(ms);
   console.log(`⏩ virtual clock → ${fmtWhen(now())} (nudges fire on the next tick, ≤10s)`);
+  const { skipHint } = await import("../src/flows/nudges.ts");
+  const hint = skipHint();
+  if (hint) console.log(`⚠️  ${hint}`);
 } else if (cmd === "reset") {
   resetAll();
   console.log("🧹 Reset: no documents, to-dos, care circle, or reminders; clock back to now.");

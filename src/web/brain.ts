@@ -7,7 +7,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { DAY, fmtShort, fmtWhen, now, offsetMs, skip } from "../clock.ts";
 import { caregiversOf, db, getSetting, resetAll, todosFor, type Doc, type User } from "../db.ts";
-import { tick } from "../flows/nudges.ts";
+import { skipHint, tick } from "../flows/nudges.ts";
 import { log } from "../log.ts";
 import { counters, recentEvents, subscribe, type FeedEvent } from "../events.ts";
 import { bandOf } from "../labs.ts";
@@ -174,7 +174,7 @@ brain.post("/brain/api/skip", async (c) => {
   skip(days * DAY);
   log("⏩", `clock → ${fmtWhen(now())}`);
   await tick();
-  return c.json({ now: fmtWhen(now()) });
+  return c.json({ now: fmtWhen(now()), hint: skipHint() });
 });
 
 brain.post("/brain/api/reset", (c) => {
@@ -209,7 +209,7 @@ brain.get("/brain/controls", (c) =>
         b.disabled = true; out.textContent = "…";
         fetch(b.dataset.reset ? "/brain/api/reset" : "/brain/api/skip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ days: +b.dataset.days }) })
           .then(function (r) { return r.json(); })
-          .then(function (j) { out.textContent = j.now ? "Now " + j.now + " (reminder arrives within ~10s)" : "Reset ✓ Delete both chats, then reload the dashboard."; })
+          .then(function (j) { out.textContent = j.hint ? "Now " + j.now + ". ⚠️ " + j.hint : j.now ? "Now " + j.now + " (reminder arrives within ~10s)" : "Reset ✓ Delete both chats, then reload the dashboard."; })
           .catch(function () { out.textContent = "Couldn't reach Juno. Is the laptop running it awake?"; })
           .finally(function () { b.disabled = false; });
       };
