@@ -31,8 +31,10 @@ export const fmtDay = fmt({ weekday: "short", month: "short", day: "numeric" });
 export const fmtShort = fmt({ month: "short", day: "numeric" });
 /** "2:00 PM" */
 export const fmtTime = fmt({ hour: "numeric", minute: "2-digit" });
-/** "Thu, Oct 15 · 2:00 PM" */
+/** "Thu, Oct 15 · 2:00 PM" (labels and cards) */
 export const fmtWhen = (t: number) => `${fmtDay(t)} · ${fmtTime(t)}`;
+/** "Thu, Oct 15 at 2:00 PM" (inside sentences) */
+export const fmtAt = (t: number) => `${fmtDay(t)} at ${fmtTime(t)}`;
 /** Context string for Gemini so relative dates ("Tue 2pm") resolve against the virtual clock. */
 export const nowContext = () =>
   `Current date/time in ${TZ}: ${new Intl.DateTimeFormat("en-US", { timeZone: TZ, dateStyle: "full", timeStyle: "short" }).format(now())}.`;

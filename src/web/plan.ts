@@ -128,7 +128,7 @@ const PLAN_JS = String.raw`
       if (s.status === "booked" && s.ics) acts.push('<a class="btn soft" href="' + s.ics + '">📅 Add to calendar</a>');
       return '<div class="step ' + s.status + '" style="--d:' + (0.1 + i * 0.08) + 's"><div class="when"><span class="chip ' + s.status + '">' + LABEL[s.status] + "</span>" + esc(s.date) + "</div>" +
         "<h3>" + esc(s.title) + "</h3>" + (s.clinic ? "<p>" + esc(s.clinic) + "</p>" : "") + (s.why ? "<p>" + esc(s.why) + "</p>" : "") +
-        (s.helper ? '<p class="note">💙 Booked with ' + esc(s.helper) + "'s help</p>" : "") +
+        (s.helper ? '<p class="note">💜 Booked with ' + esc(s.helper) + "'s help</p>" : "") +
         (s.prep && s.status !== "done" ? '<p class="note">⚠️ ' + esc(s.prep) + "</p>" : "") + (s.notes ? '<p class="note">📝 ' + esc(s.notes) + "</p>" : "") +
         (s.status === "todo" && s.script ? "<details><summary>💬 What to say when you call</summary><p>“" + esc(s.script) + "”</p></details>" : "") +
         (acts.length ? '<div class="acts">' + acts.join("") + "</div>" : "") + "</div>";

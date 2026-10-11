@@ -6,7 +6,7 @@ import { classifyText } from "./gemini.ts";
 import { log } from "./log.ts";
 import { localIntent } from "./parse.ts";
 
-const LOCAL_OK = new Set(["booked", "done", "add_caregiver", "status", "thanks", "question", "show"]);
+const LOCAL_OK = new Set(["booked", "done", "add_caregiver", "status", "thanks", "question", "show", "smalltalk"]);
 
 export async function understand(text: string, brief: Parameters<typeof localIntent>[1], role: string) {
   const local = localIntent(text, brief);

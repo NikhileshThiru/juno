@@ -214,7 +214,7 @@ export const commands: Record<string, Command> = {
     help: "share Juno's contact card (name + photo)",
     async run({ space }) {
       await imessage(space).shareContactCard();
-      await space.send("Save me as Juno so you can find me 💛");
+      await space.send("Save me as Juno so you can find me 💜");
     },
   },
   "/stream": {

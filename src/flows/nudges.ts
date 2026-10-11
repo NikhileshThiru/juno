@@ -6,6 +6,7 @@ import { copy } from "../copy.ts";
 import { caregiversOf, db, getUser, updateTodo, type Todo } from "../db.ts";
 import { log, logError } from "../log.ts";
 import { say, send } from "../spectrum.ts";
+import { momFor } from "./caregiver.ts";
 import { markdown } from "spectrum-ts";
 
 const lastRealNudge = new Map<string, number>();
@@ -60,8 +61,9 @@ async function escalations(t0: number) {
     if (!bothRead && !waitedOut) continue;
     const links = caregiversOf(t.user_id).filter((l) => l.share_level);
     if (!links.length) continue;
-    const patient = getUser(t.user_id)?.name ?? "Your mom";
-    for (const l of links) await send(l.caregiver_id, markdown(copy.escalate(l.caregiver_name ?? "there", patient, t)), { kind: "escalation", todoId: t.id });
+    const name = getUser(t.user_id)?.name ?? "my mom";
+    for (const l of links)
+      await send(l.caregiver_id, markdown(copy.escalate(l.caregiver_name ?? "there", momFor(t.user_id, l.caregiver_id), name, t)), { kind: "escalation", todoId: t.id });
     updateTodo(t.id, { escalated_at: t0 });
     log("🚨", `escalated ${t.title} to ${links.map((l) => l.caregiver_name).join(", ")} (${bothRead ? "both nudges read" : "no response in a day"})`);
   }

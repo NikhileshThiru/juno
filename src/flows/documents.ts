@@ -2,10 +2,10 @@
 import { markdown } from "spectrum-ts";
 import { sendOrUpdateCard } from "../cards.ts";
 import { now, parseLocalIso } from "../clock.ts";
-import { copy } from "../copy.ts";
+import { copy, drName, testName } from "../copy.ts";
 import { getUser, insertDoc, insertTodo, newId, todosFor, updateTodo, upsertUser } from "../db.ts";
 import { classify, extractAppointment, extractDischarge, extractLabs, type Image } from "../gemini.ts";
-import { direction, group, ORGANS, worst, type Organ } from "../labs.ts";
+import { direction, group, ORGANS, type Organ } from "../labs.ts";
 import { log, logError } from "../log.ts";
 import { say } from "../spectrum.ts";
 import { asImage, cleanPhoto, type Cleaned } from "../vision.ts";
@@ -73,12 +73,12 @@ async function handleDischarge(userId: string, docId: string, images: Image[], c
   const newMeds = d.medications.filter((m) => m.status === "new");
   const stopped = d.medications.filter((m) => m.status === "stop");
   const medLines = [
-    ...newMeds.map((m) => `• New: ${m.name}${m.dose ? ` ${m.dose}` : ""}${m.how_to_take_plain ? ` — ${m.how_to_take_plain}` : ""}`),
+    ...newMeds.map((m) => `• **New:** ${m.name}${m.dose ? ` ${m.dose}` : ""}${m.how_to_take_plain ? `. ${m.how_to_take_plain.replace(/\.$/, "")}` : ""}`),
     ...stopped.map((m) => `• **Stop:** ${m.name}`),
   ];
-  await say(userId, copy.summary(d.summary_plain, newMeds.length, todos.length), ...(medLines.length ? [markdown(copy.meds(medLines))] : []));
+  await say(userId, markdown(copy.overview(d.summary_plain, newMeds.length, todos.length, medLines)));
   await sendOrUpdateCard(userId, "tracker");
-  await say(userId, copy.numbers(todosFor(userId)), markdown(copy.howToBook));
+  await say(userId, markdown(copy.nextSteps(todosFor(userId))));
   await notifyCaregivers(userId, { type: "new_doc" });
 }
 
@@ -88,30 +88,16 @@ async function handleLabs(userId: string, docId: string, images: Image[], cleane
   const g = group(labs.tests);
   const flagged = (Object.keys(g) as Organ[]).flatMap((o) => g[o].filter((x) => x.band !== "normal").map((x) => ({ o, ...x })));
   log("🩺", `labs: ${labs.tests.length} tests, ${flagged.length} outside range`);
-  const byOrgan = (Object.keys(g) as Organ[])
-    .map((o) => ({ o, items: flagged.filter((f) => f.o === o) }))
-    .filter((x) => x.items.length)
-    .map((x) => `• ${ORGANS[x.o].label}: ${x.items.map((f) => `${f.test.name} (${direction(f.test)})`).join(", ")}`);
-  const doctor = labs.ordering_provider ?? "your doctor";
-  await say(
-    userId,
-    flagged.length
-      ? `Here are your lab results 🩺 Most are in the normal range. ${flagged.length} are outside the range printed on the report:\n${byOrgan.join("\n")}\n\nThese are worth asking ${doctor} about at your visit.`
-      : `Here are your lab results 🩺 Everything is inside the range printed on the report. ${doctor} can tell you more.`,
-  );
-  await sendOrUpdateCard(userId, "labs", docId, { caption: "Your lab results", subcaption: flagged.length ? `${flagged.length} outside the range · tap for details` : "All in range" });
-
+  const organsFlagged = (Object.keys(g) as Organ[]).filter((o) => flagged.some((f) => f.o === o));
+  const byOrgan = organsFlagged.map((o) => `• ${ORGANS[o].short}: ${flagged.filter((f) => f.o === o).map((f) => `${testName(f.test.name)} (${direction(f.test)})`).join(", ")}`);
+  const dr = drName(labs.ordering_provider) ?? "your doctor";
   // No new medical to-dos: attach "ask about" notes to the primary care visit instead.
   const pcp = todosFor(userId).find((t) => t.category === "primary_care" && t.status !== "done");
-  if (pcp && flagged.length) {
-    updateTodo(pcp.id, { notes: `Ask about: ${flagged.map((f) => f.test.name).join(", ")}` });
-    await sendOrUpdateCard(userId, "tracker");
-  }
-  const worstOrgans = (Object.keys(g) as Organ[]).filter((o) => worst(g[o].map((x) => x.band)) === "out").map((o) => ORGANS[o].plain);
-  await notifyCaregivers(userId, {
-    type: "labs",
-    line: `🩺 New lab results for ${getUser(userId)?.name ?? "your mom"}: ${flagged.length} of ${labs.tests.length} outside the printed range${worstOrgans.length ? ` (${worstOrgans.join(", ")})` : ""}. She'll ask ${doctor} about them.`,
-  });
+  if (pcp && flagged.length) updateTodo(pcp.id, { notes: `Ask about: ${flagged.map((f) => testName(f.test.name)).join(", ")}` });
+  await say(userId, markdown(copy.labs(flagged.length, labs.tests.length, byOrgan, dr, !!(pcp && flagged.length))));
+  await sendOrUpdateCard(userId, "labs", docId, { caption: "Your lab results", subcaption: flagged.length ? `${flagged.length} to ask about · tap an organ` : "All in range" });
+  if (pcp && flagged.length) await sendOrUpdateCard(userId, "tracker");
+  await notifyCaregivers(userId, { type: "labs", flagged: flagged.length, total: labs.tests.length, organs: organsFlagged.map((o) => ORGANS[o].plain), dr });
 }
 
 async function handleAppointment(userId: string, docId: string, images: Image[], cleaned: Cleaned[]) {
@@ -119,7 +105,7 @@ async function handleAppointment(userId: string, docId: string, images: Image[],
   save(userId, docId, "appointment", cleaned, a);
   const at = parseLocalIso(a.appt_datetime_iso);
   const todo = matchTodo(userId, `${a.clinic_name ?? ""} ${a.provider ?? ""}`);
-  if (!todo || !at) return say(userId, "Thanks! I couldn't tell which appointment that is — could you text me, like *booked heart doctor Tue 2pm*?");
+  if (!todo || !at) return say(userId, copy.unknownAppointment);
   if (a.prep_plain && !todo.prep) updateTodo(todo.id, { prep: a.prep_plain });
   await applyBooked(userId, todo.id, at, "self");
 }

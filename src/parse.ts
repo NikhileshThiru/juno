@@ -74,5 +74,6 @@ export function localIntent(text: string, open: OpenTodo[]): Intent {
     return { ...base, intent: "booked", todo_id: matchOpenTodo(text, open), appt_datetime_iso: parseWhen(text) };
   if (/\b(done|went|finished|did it|picked up|completed)\b/i.test(text)) return { ...base, intent: "done", todo_id: matchOpenTodo(text, open) };
   if (/thank/i.test(text)) return { ...base, intent: "thanks" };
+  if (/^\s*(hi|hey|hello|hiya|yo|good (morning|afternoon|evening)|howdy)\b[\s!.,💜💛❤️]*(juno)?[\s!.]*$/i.test(text)) return { ...base, intent: "smalltalk" };
   return base;
 }

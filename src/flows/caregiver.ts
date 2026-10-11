@@ -8,7 +8,7 @@ import { copy } from "../copy.ts";
 import { caregiversOf, latestDoc, linkCaregiver, patientsOf, savePoll, setSetting, getSetting, setShareLevel, todosFor, upsertUser, type Todo } from "../db.ts";
 import type { Discharge } from "../gemini.ts";
 import { matchOpenTodo } from "../parse.ts";
-import { answer } from "../answer.ts";
+import { answer, isEmergency } from "../answer.ts";
 import { understand } from "../intent.ts";
 import { log } from "../log.ts";
 import { say, send } from "../spectrum.ts";
@@ -23,7 +23,7 @@ export function normalizePhone(raw: string): string | null {
 
 export async function addCaregiver(patientId: string, rawPhone: string, name: string | null, relation: string | null) {
   const phone = normalizePhone(rawPhone);
-  if (!phone || phone === patientId) return say(patientId, "Hmm, I couldn't use that number. Could you share their contact card or type the number?");
+  if (!phone || phone === patientId) return say(patientId, copy.badNumber);
   const cgName = name?.split(" ")[0] ?? "them";
   upsertUser(phone, { name: name?.split(" ")[0] ?? null, role: "caregiver" });
   linkCaregiver(patientId, phone, cgName);
@@ -34,19 +34,19 @@ export async function addCaregiver(patientId: string, rawPhone: string, name: st
   const sent = await send(patientId, poll(copy.askShare(cgName), ...copy.shareOptions));
   if (sent) savePoll(sent.id, patientId, "share", { caregiverId: phone });
   // First message to someone new: text only, no links or media (Apple suppresses them).
-  await say(phone, copy.cgIntro(cgName, patientName(patientId), relation || null));
+  await say(phone, copy.cgIntro(cgName, momFor(patientId, phone)));
 }
 
 export async function onShareChosen(patientId: string, caregiverId: string, level: "todos" | "everything") {
   setShareLevel(patientId, caregiverId, level);
   const link = caregiversOf(patientId).find((l) => l.caregiver_id === caregiverId)!;
   await say(patientId, copy.shareSet(link.caregiver_name ?? "them", level));
-  await say(caregiverId, summaryFor(patientId, level));
+  await say(caregiverId, summaryFor(patientId, caregiverId, level));
   // Not the first message to them (the intro was), so a link is fine now.
   await send(caregiverId, richlink(`${publicBaseUrl()}/plan/${tokenFor(patientId)}?as=family`));
 }
 
-function summaryFor(patientId: string, level: "todos" | "everything") {
+function summaryFor(patientId: string, caregiverId: string, level: "todos" | "everything") {
   const todos = todosFor(patientId);
   let extra: string | undefined;
   if (level === "everything") {
@@ -57,31 +57,32 @@ function summaryFor(patientId: string, level: "todos" | "everything") {
       extra = `${d.reason_plain}${meds.length ? `\n${meds.join("\n")}` : ""}`;
     }
   }
-  return copy.cgSummary(patientName(patientId), todos, extra);
+  return copy.cgSummary(momFor(patientId, caregiverId), todos, extra);
 }
 
 export type CareEvent =
   | { type: "new_doc" }
   | { type: "booked"; todo: Todo; by: string }
   | { type: "done"; todo: Todo }
-  | { type: "labs"; line: string }
+  | { type: "labs"; flagged: number; total: number; organs: string[]; dr: string }
   | { type: "urgent"; text: string };
 
 export async function notifyCaregivers(patientId: string, ev: CareEvent, except?: string) {
   for (const link of caregiversOf(patientId)) {
     if (!link.share_level || link.caregiver_id === except) continue;
-    const p = patientName(patientId);
-    if (ev.type === "new_doc") await say(link.caregiver_id, summaryFor(patientId, link.share_level));
-    if (ev.type === "booked") await say(link.caregiver_id, copy.cgBooked(p, ev.todo, ev.by));
-    if (ev.type === "done") await say(link.caregiver_id, copy.cgDone(p, ev.todo));
-    if (ev.type === "labs" && link.share_level === "everything") await say(link.caregiver_id, ev.line);
-    if (ev.type === "urgent") await say(link.caregiver_id, `⚠️ ${p} just texted me: "${ev.text}". I told her to call 911 or go to the ER now.`);
+    const mom = momFor(patientId, link.caregiver_id);
+    if (ev.type === "new_doc") await say(link.caregiver_id, summaryFor(patientId, link.caregiver_id, link.share_level));
+    if (ev.type === "booked") await say(link.caregiver_id, copy.cgBooked(mom, ev.todo, ev.by));
+    if (ev.type === "done") await say(link.caregiver_id, copy.cgDone(mom, ev.todo));
+    if (ev.type === "labs" && link.share_level === "everything") await say(link.caregiver_id, copy.cgLabs(mom, ev.flagged, ev.total, ev.organs, ev.dr));
+    if (ev.type === "urgent") await say(link.caregiver_id, copy.urgent(mom, ev.text));
   }
 }
 
 export async function handleCaregiverText(caregiverId: string, text: string) {
   const patientId = patientsOf(caregiverId)[0]?.patient_id;
   if (!patientId) return;
+  if (isEmergency(text)) return say(caregiverId, (await answer(patientId, text, true)).text);
   const open = todosFor(patientId).filter((t) => t.status !== "done");
   const brief = open.map((t) => ({ id: t.id, title: t.title, clinic: t.clinic, status: t.status, category: t.category }));
   const intent = await understand(text, brief, "caregiver (a family member helping the patient)");
@@ -101,11 +102,11 @@ export async function handleCaregiverText(caregiverId: string, text: string) {
     return;
   }
   if (intent.intent === "done" && todo) return applyDone(patientId, todo.id, caregiverId);
-  if (intent.intent === "status") return say(caregiverId, copy.cgSummary(patientName(patientId), todosFor(patientId)));
+  if (intent.intent === "status") return say(caregiverId, copy.cgSummary(momFor(patientId, caregiverId), todosFor(patientId)));
   if (intent.intent === "show") return send(caregiverId, richlink(`${publicBaseUrl()}/plan/${tokenFor(patientId)}?as=family`));
   if (intent.intent === "question") return say(caregiverId, (await answer(patientId, text, true)).text);
-  if (intent.intent === "thanks") return say(caregiverId, "Anytime 💛");
-  return say(caregiverId, `I'll keep you posted on ${patientName(patientId)}'s follow-ups 💛 If you book something for her, just text me the day and time.`);
+  if (intent.intent === "thanks") return say(caregiverId, copy.thanks);
+  return say(caregiverId, copy.cgDefault(momFor(patientId, caregiverId)));
 }
 
 export function pendingShare(patientId: string) {
@@ -113,4 +114,9 @@ export function pendingShare(patientId: string) {
 }
 
 export const relationOf = (patientId: string, cg: string) => getSetting(`relation:${patientId}:${cg}`) || null;
+
+/** How Juno refers to the patient when talking to a caregiver: "your mom" for her kids, otherwise her name. */
+export function momFor(patientId: string, caregiverId: string): string {
+  return /daughter|son|child|kid/i.test(relationOf(patientId, caregiverId) ?? "") ? "your mom" : patientName(patientId);
+}
 export const isCaregiver = (userId: string) => patientsOf(userId).length > 0 && todosFor(userId).length === 0;

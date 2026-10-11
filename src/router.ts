@@ -5,10 +5,10 @@
 import { poll, richlink, type Message, type Space } from "spectrum-ts";
 import { imessage } from "spectrum-ts/providers/imessage";
 import { DAY, now, parseLocalIso } from "./clock.ts";
-import { ASK_DOCTOR, copy } from "./copy.ts";
+import { copy } from "./copy.ts";
 import { db, getSetting, getTodo, getUser, latestDoc, markReadUpTo, savePoll, setSetting, todosFor, upsertUser } from "./db.ts";
 import { isAdmin } from "./env.ts";
-import { answer } from "./answer.ts";
+import { answer, isEmergency } from "./answer.ts";
 import { sendOrUpdateCard, tokenFor } from "./cards.ts";
 import { publicBaseUrl } from "./env.ts";
 import { addCaregiver, handleCaregiverText, isCaregiver, notifyCaregivers, onShareChosen, pendingShare } from "./flows/caregiver.ts";
@@ -17,7 +17,7 @@ import { handlePhotos, type Photo } from "./flows/documents.ts";
 import { tick } from "./flows/nudges.ts";
 import { applyBooked, applyDone } from "./flows/status.ts";
 import { understand } from "./intent.ts";
-import { matchOpenTodo } from "./parse.ts";
+import { localIntent, matchOpenTodo } from "./parse.ts";
 import { log, logError } from "./log.ts";
 import { onPollVote as phase1Vote, onReadReceipt as phase1Read } from "./phase1.ts";
 import { rememberSpace, say, send } from "./spectrum.ts";
@@ -120,24 +120,36 @@ async function flush(t: Turn) {
       return;
     }
     const photos = (await Promise.all(t.photos)).filter((p): p is Photo => p !== null);
-    await onboardIfNeeded(t);
+    const text = t.texts.join("\n");
+    const fresh = await onboardIfNeeded(t);
     if (photos.length) await handlePhotos(t.userId, photos);
     for (const c of t.contacts) await addCaregiver(t.userId, c.phone, c.name, getSetting(`pending_relation:${t.userId}`));
-    if (t.texts.length && !(t.photos.length && t.texts.every((x) => x.length < 40))) await handlePatientText(t.userId, t.texts.join("\n"));
+    // The welcome already answers a first "hi" or "can you help?"; only act on the
+    // text itself if it's urgent or something to do. Short captions on photos are skipped too.
+    const firstTurnSkip = fresh && !isEmergency(text) && localIntent(text, []).intent !== "add_caregiver";
+    const captionSkip = t.photos.length && t.texts.every((x) => x.length < 40);
+    if (text && !firstTurnSkip && !captionSkip) await handlePatientText(t.userId, text);
   } finally {
     await t.space.stopTyping().catch(() => {});
   }
 }
 
-async function onboardIfNeeded(t: Turn) {
+/** First contact: welcome + (if no photo yet) how to start. Returns true if this turn was the welcome. */
+async function onboardIfNeeded(t: Turn): Promise<boolean> {
   const u = getUser(t.userId);
-  if (u?.onboarded) return;
+  if (u?.onboarded) return false;
   upsertUser(t.userId, { onboarded: 1, role: "patient" });
   await say(t.userId, copy.welcome(u?.name), ...(t.photos.length ? [] : [copy.askForPhoto]));
   await imessage(t.space).shareContactCard().catch(() => {});
+  return true;
 }
 
 async function handlePatientText(userId: string, text: string) {
+  // Safety first: a warning-sign symptom gets "call 911" and a heads-up to family, never a chat.
+  if (isEmergency(text)) {
+    await say(userId, (await answer(userId, text, false)).text);
+    return notifyCaregivers(userId, { type: "urgent", text });
+  }
   const share = pendingShare(userId);
   if (share && /^\s*(1|2|just|to-?dos|everything|all)\b/i.test(text)) {
     return onShareChosen(userId, share.caregiver_id, /^\s*(2|everything|all)/i.test(text) ? "everything" : "todos");
@@ -171,27 +183,24 @@ async function handlePatientText(userId: string, text: string) {
       return;
     case "done":
       if (todo) return applyDone(userId, todo.id, "self");
-      return say(userId, "Which one did you finish?");
+      return say(userId, copy.whichDone);
     case "add_caregiver":
       if (intent.caregiver_phone) return addCaregiver(userId, intent.caregiver_phone, intent.caregiver_name, intent.caregiver_relation);
       setSetting(`pending_relation:${userId}`, intent.caregiver_relation ?? "");
-      return say(userId, `Of course 💛 Share ${intent.caregiver_name ?? "their"} contact card here, or type the number.`);
-    case "question": {
-      if (!latestDoc(userId, "discharge") && !latestDoc(userId, "lab") && !todosFor(userId).length)
-        return say(userId, `I don't have any of your papers yet. Send me a photo and I can help. ${ASK_DOCTOR}`);
-      const res = await answer(userId, text, false);
-      await say(userId, res.text);
-      if (res.emergency) await notifyCaregivers(userId, { type: "urgent", text });
-      return;
-    }
+      return say(userId, copy.askCaregiver(intent.caregiver_name));
+    case "question":
+      if (!hasPlan(userId)) return say(userId, copy.noPapersYet);
+      return say(userId, (await answer(userId, text, false)).text);
     case "show":
       return pullUp(userId, text);
     case "status":
       return say(userId, copy.status(todosFor(userId)));
     case "thanks":
-      return say(userId, "Anytime 💛");
+      return say(userId, copy.thanks);
+    case "smalltalk":
+      return say(userId, copy.greeting(getUser(userId)?.name ?? null, hasPlan(userId)));
     default:
-      return say(userId, copy.fallback);
+      return say(userId, copy.fallback(hasPlan(userId)));
   }
 }
 
@@ -238,8 +247,13 @@ async function pullUp(userId: string, text: string) {
     db.query("DELETE FROM cards WHERE user_id = ? AND kind = 'labs'").run(userId);
     return sendOrUpdateCard(userId, "labs", lab.id, { caption: "Your lab results", subcaption: "Tap an organ to explore" });
   }
-  if (/\bplan\b/i.test(text)) return send(userId, richlink(`${publicBaseUrl()}/plan/${tokenFor(userId)}`));
+  if (/\bplan\b/i.test(text)) {
+    await say(userId, copy.carePlan);
+    return send(userId, richlink(`${publicBaseUrl()}/plan/${tokenFor(userId)}`));
+  }
   if (!todosFor(userId).length) return say(userId, copy.askForPhoto);
   db.query("DELETE FROM cards WHERE user_id = ? AND kind = 'tracker'").run(userId);
   return sendOrUpdateCard(userId, "tracker");
 }
+
+const hasPlan = (userId: string) => !!(latestDoc(userId, "discharge") || latestDoc(userId, "lab") || todosFor(userId).length);

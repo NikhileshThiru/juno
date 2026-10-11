@@ -5,13 +5,13 @@ export type Test = Labs["tests"][number];
 export type Band = "normal" | "borderline" | "out";
 export type Organ = "kidneys" | "liver" | "heart" | "thyroid" | "pancreas" | "blood";
 
-export const ORGANS: Record<Organ, { label: string; plain: string }> = {
-  heart: { label: "Heart & vessels", plain: "cholesterol & heart health" },
-  kidneys: { label: "Kidneys", plain: "kidney function" },
-  liver: { label: "Liver", plain: "liver tests" },
-  pancreas: { label: "Blood sugar", plain: "blood sugar" },
-  thyroid: { label: "Thyroid", plain: "thyroid" },
-  blood: { label: "Blood & general", plain: "blood counts & salts" },
+export const ORGANS: Record<Organ, { label: string; short: string; plain: string }> = {
+  heart: { label: "Heart & vessels", short: "Heart", plain: "cholesterol & heart health" },
+  kidneys: { label: "Kidneys", short: "Kidneys", plain: "kidney function" },
+  liver: { label: "Liver", short: "Liver", plain: "liver tests" },
+  pancreas: { label: "Blood sugar", short: "Blood sugar", plain: "blood sugar" },
+  thyroid: { label: "Thyroid", short: "Thyroid", plain: "thyroid" },
+  blood: { label: "Blood & general", short: "Blood", plain: "blood counts & salts" },
 };
 
 const MAP: [Organ, RegExp][] = [

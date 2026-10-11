@@ -7,6 +7,7 @@ import { fmtShort, fmtWhen, now } from "./clock.ts";
 import { caregiversOf, getUser, latestDoc, todosFor, type Todo } from "./db.ts";
 import { answerQuestion, type Discharge, type Labs } from "./gemini.ts";
 import { bandOf, direction, group, ORGANS, organOf, type Organ, type Test } from "./labs.ts";
+import { thing } from "./copy.ts";
 import { log } from "./log.ts";
 import { matchOpenTodo } from "./parse.ts";
 
@@ -36,14 +37,6 @@ const MED_GUIDE: { names: string[]; what: string; kind: string }[] = [
 const EMERGENCY =
   /\b(chest (pain|pressure|hurts)|can'?t breathe|cannot breathe|trouble breathing|short(ness)? of breath|passed out|fainted|fainting|face (is )?droop\w*|slurr\w*|trouble speaking|can'?t speak|numb(ness)?|weak(ness)? on one side|black stools?|blood in (my |her )?(urine|pee)|bleeding (a lot|won'?t stop)|heart (is )?(racing|pounding))\b/i;
 
-/** A to-do as a phrase: "See a heart doctor" → "heart doctor visit". */
-function thing(t: Todo): string {
-  const see = t.title.match(/^see (a |an |your |the |her )?(.+)$/i);
-  if (see) return `${see[2]!.toLowerCase()} visit`;
-  const pick = t.title.match(/^pick up (new )?(.+)$/i);
-  if (pick) return `${pick[2]!.toLowerCase().replace(/s$/, "")} pickup`;
-  return t.title.toLowerCase();
-}
 
 type Ctx = {
   family: boolean;
@@ -183,15 +176,18 @@ function localAnswer(text: string, c: Ctx): string | null {
   if (/\bwhere|address|location\b/.test(t)) return where ? `The ${title} is at ${where}.` : `The papers don't say where the ${title} is.`;
   if (todo.status === "done") return `✅ ${p.Your} ${title} is already done.`;
   if (todo.status === "booked")
-    return `📅 ${p.Your} ${title} is **${fmtWhen(todo.appt_at!)}**${where ? ` at ${where}` : ""}.${helper ? ` ${helper} booked it 💛` : ""}${todo.prep ? `\n\nRemember: ${todo.prep}` : ""}`;
+    return `📅 ${p.Your} ${title} is **${fmtWhen(todo.appt_at!)}**${where ? ` at ${where}` : ""}.${helper ? ` ${helper} booked it 💜` : ""}${todo.prep ? `\n\nRemember: ${todo.prep}` : ""}`;
   return `${p.You} ${c.family ? "hasn't" : "haven't"} booked ${p.your} ${title} yet${todo.due_at ? `. It should happen by **${fmtShort(todo.due_at)}**` : ""}.${todo.phone ? `\n\n${todo.clinic ?? "Call"}: ${todo.phone}` : ""}${c.family ? "" : "\n\nWhen you book it, just text me the day and time."}`;
 }
 
 export type Asked = { text: string; emergency: boolean };
 
+/** A message describing a warning-sign symptom right now (not a question about what one means). */
+export const isEmergency = (text: string) => EMERGENCY.test(text) && !/\bwhat (is|are|does)|warning/i.test(text);
+
 export async function answer(patientId: string, question: string, family: boolean): Promise<Asked> {
   const c = context(patientId, family);
-  if (EMERGENCY.test(question) && !/\bwhat (is|are|does)|warning/i.test(question)) {
+  if (isEmergency(question)) {
     const who = family ? `If ${c.name} has that right now, call 911` : "If you're having that right now, please call 911";
     return { text: `🚨 ${who} or go to the nearest emergency room. That's on the warning-signs list from the hospital.`, emergency: true };
   }

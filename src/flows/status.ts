@@ -9,7 +9,7 @@ import { caregiversOf, getTodo, getUser, todosFor, updateTodo, type Todo } from 
 import { buildIcs } from "../ics.ts";
 import { log } from "../log.ts";
 import { say, send } from "../spectrum.ts";
-import { notifyCaregivers } from "./caregiver.ts";
+import { momFor, notifyCaregivers } from "./caregiver.ts";
 
 export async function applyBooked(patientId: string, todoId: string, apptAt: number, bookedBy: string) {
   updateTodo(todoId, { status: "booked", appt_at: apptAt, booked_by: bookedBy, reminded_day_before: 0 });
@@ -20,7 +20,7 @@ export async function applyBooked(patientId: string, todoId: string, apptAt: num
   await say(patientId, helper ? copy.bookedByHelper(t, helper) : copy.booked(t));
   const ics = buildIcs(t);
   await send(patientId, attachment(ics.data, { name: ics.name, mimeType: "text/calendar" }));
-  if (bookedBy !== "self") await say(bookedBy, copy.cgThanks(t));
+  if (bookedBy !== "self") await say(bookedBy, copy.cgThanks(t, momFor(patientId, bookedBy)));
   await notifyCaregivers(patientId, { type: "booked", todo: t, by: bookedBy }, bookedBy);
 }
 
@@ -43,4 +43,4 @@ export function matchTodo(patientId: string, hint: string): Todo | null {
   return best && best[1] > 0 ? best[0] : null;
 }
 
-export const patientName = (id: string) => getUser(id)?.name ?? "Your mom";
+export const patientName = (id: string) => getUser(id)?.name ?? "your mom";

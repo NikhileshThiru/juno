@@ -5,7 +5,7 @@ const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace
 
 export function buildIcs(t: Todo): { name: string; data: Buffer } {
   const start = t.appt_at!;
-  const notes = [t.prep, t.category === "specialist" || t.category === "primary_care" ? "Bring your medication list." : null, t.phone ? `Clinic: ${t.phone}` : null, "From Juno 💛"]
+  const notes = [t.prep, t.category === "specialist" || t.category === "primary_care" ? "Bring your medication list." : null, t.phone ? `Clinic: ${t.phone}` : null, "From Juno 💜"]
     .filter(Boolean)
     .join("\n");
   const lines = [
