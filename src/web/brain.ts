@@ -17,7 +17,8 @@ export const brain = new Hono();
 
 /** Secret for remote access (a teammate recording on another laptop). Derived, so there's nothing to configure. */
 export const brainKey = () =>
-  new Bun.CryptoHasher("sha256").update(`juno-brain:${process.env.SPECTRUM_PROJECT_SECRET}`).digest("base64url").slice(0, 24);
+  // hex only: links survive being pasted into iMessage (trailing "_" or "-" can get cut off)
+  new Bun.CryptoHasher("sha256").update(`juno-brain:${process.env.SPECTRUM_PROJECT_SECRET}`).digest("hex").slice(0, 24);
 
 /**
  * The dashboard is for the laptop running Juno, or for whoever has the private
