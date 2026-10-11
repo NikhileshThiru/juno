@@ -21,26 +21,49 @@ export function normalizePhone(raw: string): string | null {
   return d.length > 7 ? `+${d}` : null;
 }
 
+/** "tvisha" → "Tvisha"; first name only. */
+const firstName = (name: string | null | undefined) => {
+  const first = name?.trim().split(/\s+/)[0];
+  return first ? first.charAt(0).toUpperCase() + first.slice(1) : null;
+};
+
+/** How Juno names a caregiver to the patient: "Tvisha", else "your daughter", else "your family". */
+export function cgLabel(patientId: string, caregiverId: string): string {
+  const link = caregiversOf(patientId).find((l) => l.caregiver_id === caregiverId);
+  const rel = relationOf(patientId, caregiverId);
+  return link?.caregiver_name ?? (rel ? `your ${rel}` : "your family");
+}
+
+// "add my daughter Tvisha" without a number: remember who, so the next message
+// (a bare number or a contact card) completes it.
+type Pending = { name: string | null; relation: string | null };
+export const setPendingCaregiver = (patientId: string, p: Pending) => setSetting(`pending_caregiver:${patientId}`, JSON.stringify(p));
+export function takePendingCaregiver(patientId: string): Pending | null {
+  const raw = getSetting(`pending_caregiver:${patientId}`);
+  if (!raw) return null;
+  setSetting(`pending_caregiver:${patientId}`, "");
+  return JSON.parse(raw) as Pending;
+}
+
 export async function addCaregiver(patientId: string, rawPhone: string, name: string | null, relation: string | null) {
   const phone = normalizePhone(rawPhone);
   if (!phone || phone === patientId) return say(patientId, copy.badNumber);
-  const cgName = name?.split(" ")[0] ?? "them";
-  upsertUser(phone, { name: name?.split(" ")[0] ?? null, role: "caregiver" });
-  linkCaregiver(patientId, phone, cgName);
+  const first = firstName(name);
+  upsertUser(phone, { name: first, role: "caregiver" });
+  linkCaregiver(patientId, phone, first);
   setSetting(`relation:${patientId}:${phone}`, relation ?? "");
-  log("👪", `caregiver ${cgName} (${phone}) linked to ${patientId}`);
+  log("👪", `caregiver ${first ?? relation ?? "family"} (${phone}) linked to ${patientId}`);
 
   // Ask Mom what to share; the vote arrives as poll_option. "1"/"2" text works too.
-  const sent = await send(patientId, poll(copy.askShare(cgName), ...copy.shareOptions));
+  const sent = await send(patientId, poll(copy.askShare(cgLabel(patientId, phone)), ...copy.shareOptions));
   if (sent) savePoll(sent.id, patientId, "share", { caregiverId: phone });
   // First message to someone new: text only, no links or media (Apple suppresses them).
-  await say(phone, copy.cgIntro(cgName, momFor(patientId, phone)));
+  await say(phone, copy.cgIntro(first, momFor(patientId, phone)));
 }
 
 export async function onShareChosen(patientId: string, caregiverId: string, level: "todos" | "everything") {
   setShareLevel(patientId, caregiverId, level);
-  const link = caregiversOf(patientId).find((l) => l.caregiver_id === caregiverId)!;
-  await say(patientId, copy.shareSet(link.caregiver_name ?? "them", level));
+  await say(patientId, copy.shareSet(cgLabel(patientId, caregiverId), level));
   await say(caregiverId, summaryFor(patientId, caregiverId, level));
   // Not the first message to them (the intro was), so a link is fine now.
   await send(caregiverId, richlink(`${publicBaseUrl()}/plan/${tokenFor(patientId)}?as=family`));

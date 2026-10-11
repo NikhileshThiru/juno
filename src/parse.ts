@@ -59,9 +59,11 @@ export function parseWhen(text: string): string | null {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(hour)}:${pad(minute)}`;
 }
 
+export const findPhone = (text: string) => text.match(/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/)?.[0] ?? null;
+
 export function localIntent(text: string, open: OpenTodo[]): Intent {
   const base: Intent = { intent: "other", todo_id: null, appt_datetime_iso: null, caregiver_phone: null, caregiver_name: null, caregiver_relation: null };
-  const phone = text.match(/(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/)?.[0] ?? null;
+  const phone = findPhone(text);
   const rel = text.match(/\b(daughter|son|wife|husband|sister|brother|niece|nephew|friend|grand(?:daughter|son))\b\s*([A-Z][a-z]+)?/i);
   if (/\b(add|include|loop in)\b/i.test(text) && (rel || phone))
     return { ...base, intent: "add_caregiver", caregiver_phone: phone, caregiver_relation: rel?.[1]?.toLowerCase() ?? null, caregiver_name: rel?.[2] ?? null };

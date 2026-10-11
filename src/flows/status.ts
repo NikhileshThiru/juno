@@ -9,14 +9,14 @@ import { caregiversOf, getTodo, getUser, todosFor, updateTodo, type Todo } from 
 import { buildIcs } from "../ics.ts";
 import { log } from "../log.ts";
 import { say, send } from "../spectrum.ts";
-import { momFor, notifyCaregivers } from "./caregiver.ts";
+import { cgLabel, momFor, notifyCaregivers } from "./caregiver.ts";
 
 export async function applyBooked(patientId: string, todoId: string, apptAt: number, bookedBy: string) {
   updateTodo(todoId, { status: "booked", appt_at: apptAt, booked_by: bookedBy, reminded_day_before: 0 });
   const t = getTodo(todoId)!;
   log("📅", `booked: ${t.title} @ ${new Date(apptAt).toISOString()} by ${bookedBy}`);
   await sendOrUpdateCard(patientId, "tracker");
-  const helper = bookedBy === "self" ? null : (caregiversOf(patientId).find((l) => l.caregiver_id === bookedBy)?.caregiver_name ?? "Your family");
+  const helper = bookedBy === "self" ? null : cgLabel(patientId, bookedBy);
   await say(patientId, helper ? copy.bookedByHelper(t, helper) : copy.booked(t));
   const ics = buildIcs(t);
   await send(patientId, attachment(ics.data, { name: ics.name, mimeType: "text/calendar" }));

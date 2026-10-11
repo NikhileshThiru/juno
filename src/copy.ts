@@ -74,7 +74,7 @@ export const copy = {
 
   // tracking
   booked: (t: Todo) => `✅ Got it: your ${thing(t)} is **${fmtAt(t.appt_at!)}**. Tap the invite below to add it to your calendar.`,
-  bookedByHelper: (t: Todo, helper: string) => `💜 ${helper} booked your ${thing(t)} for **${fmtAt(t.appt_at!)}**. Tap the invite below to add it to your calendar.`,
+  bookedByHelper: (t: Todo, helper: string) => `💜 ${cap(helper)} booked your ${thing(t)} for **${fmtAt(t.appt_at!)}**. Tap the invite below to add it to your calendar.`,
   needTime: (t: Todo) => `Great! When is your ${thing(t)}? Something like *Tue 2pm* works.`,
   done: (t: Todo) => `✅ Nice work. Your ${thing(t)} is done.`,
   allDone: "You did everything on your list 🎉",
@@ -95,8 +95,8 @@ export const copy = {
   shareSet: (name: string, level: string) => `Done. I'll keep ${name} posted on ${level === "everything" ? "everything" : "your to-dos"} 💜`,
 
   // caregiver chat ("mom" is "your mom" for a daughter or son, otherwise her name)
-  cgIntro: (cg: string, mom: string) =>
-    `Hi ${cg}, I'm Juno 💜 ${cap(mom)} asked me to keep you posted on her follow-up care after her hospital stay. I'll text you when something gets booked or needs a hand.`,
+  cgIntro: (cg: string | null, mom: string) =>
+    `Hi${cg ? ` ${cg}` : ""}, I'm Juno 💜 ${cap(mom)} asked me to keep you posted on her follow-up care after her hospital stay. I'll text you when something gets booked or needs a hand.`,
   cgSummary: (mom: string, todos: Todo[], extra?: string) =>
     `Here's ${mom}'s list right now:\n${lines(todos)}${extra ? `\n\n${extra}` : ""}\n\nIf you book something for her, just text me (like *booked the blood test Thu 9am*). You can also ask me things like *when is her blood test?*`,
   cgBooked: (mom: string, t: Todo, by: string) =>

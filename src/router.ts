@@ -11,13 +11,13 @@ import { isAdmin } from "./env.ts";
 import { answer, isEmergency } from "./answer.ts";
 import { sendOrUpdateCard, tokenFor } from "./cards.ts";
 import { publicBaseUrl } from "./env.ts";
-import { addCaregiver, handleCaregiverText, isCaregiver, notifyCaregivers, onShareChosen, pendingShare } from "./flows/caregiver.ts";
+import { addCaregiver, handleCaregiverText, isCaregiver, notifyCaregivers, onShareChosen, pendingShare, setPendingCaregiver, takePendingCaregiver } from "./flows/caregiver.ts";
 import { runAdmin } from "./flows/admin.ts";
 import { handlePhotos, type Photo } from "./flows/documents.ts";
 import { tick } from "./flows/nudges.ts";
 import { applyBooked, applyDone } from "./flows/status.ts";
 import { understand } from "./intent.ts";
-import { localIntent, matchOpenTodo } from "./parse.ts";
+import { findPhone, localIntent, matchOpenTodo } from "./parse.ts";
 import { log, logError } from "./log.ts";
 import { onPollVote as phase1Vote, onReadReceipt as phase1Read } from "./phase1.ts";
 import { rememberSpace, say, send } from "./spectrum.ts";
@@ -123,7 +123,10 @@ async function flush(t: Turn) {
     const text = t.texts.join("\n");
     const fresh = await onboardIfNeeded(t);
     if (photos.length) await handlePhotos(t.userId, photos);
-    for (const c of t.contacts) await addCaregiver(t.userId, c.phone, c.name, getSetting(`pending_relation:${t.userId}`));
+    for (const c of t.contacts) {
+      const pending = takePendingCaregiver(t.userId);
+      await addCaregiver(t.userId, c.phone, c.name ?? pending?.name ?? null, pending?.relation ?? null);
+    }
     // The welcome already answers a first "hi" or "can you help?"; only act on the
     // text itself if it's urgent or something to do. Short captions on photos are skipped too.
     const firstTurnSkip = fresh && !isEmergency(text) && localIntent(text, []).intent !== "add_caregiver";
@@ -149,6 +152,12 @@ async function handlePatientText(userId: string, text: string) {
   if (isEmergency(text)) {
     await say(userId, (await answer(userId, text, false)).text);
     return notifyCaregivers(userId, { type: "urgent", text });
+  }
+  // "add my daughter Tvisha" earlier, and now just her number.
+  const phone = findPhone(text);
+  if (phone) {
+    const pending = takePendingCaregiver(userId);
+    if (pending) return addCaregiver(userId, phone, pending.name, pending.relation);
   }
   const share = pendingShare(userId);
   if (share && /^\s*(1|2|just|to-?dos|everything|all)\b/i.test(text)) {
@@ -186,8 +195,8 @@ async function handlePatientText(userId: string, text: string) {
       return say(userId, copy.whichDone);
     case "add_caregiver":
       if (intent.caregiver_phone) return addCaregiver(userId, intent.caregiver_phone, intent.caregiver_name, intent.caregiver_relation);
-      setSetting(`pending_relation:${userId}`, intent.caregiver_relation ?? "");
-      return say(userId, copy.askCaregiver(intent.caregiver_name));
+      setPendingCaregiver(userId, { name: intent.caregiver_name, relation: intent.caregiver_relation });
+      return say(userId, copy.askCaregiver(intent.caregiver_name ? intent.caregiver_name.charAt(0).toUpperCase() + intent.caregiver_name.slice(1) : null));
     case "question":
       if (!hasPlan(userId)) return say(userId, copy.noPapersYet);
       return say(userId, (await answer(userId, text, false)).text);
