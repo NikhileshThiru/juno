@@ -29,21 +29,22 @@ Everything needed to run the demo and record the submission video, without touch
 
 ## The run (about 4 minutes before editing)
 
-**Don't text Juno from Tvisha's phone until step 4.**
+**Order matters: photos 1 + 2 first (they create the to-dos), photo 3 and photo 4 later. Don't text Juno from Tvisha's phone until step 4.**
 
 | # | Do | You should see |
 |---|---|---|
 | 1 | **Mom** sends photos 1 + 2 **together** (one album) | 👀 on the photos, a welcome, "Got both pages…", then warning signs, a plain summary + medicines, the **checklist card**, and the numbers to call (about 15 s). Dashboard: photo → detected page → flattened scan, 4 to-dos on the board. |
 | 2 | **Mom** asks: *can I eat before my blood test?* | "For the fasting blood test: Nothing to eat or drink except water for 10–12 hours before…" |
-| 3 | **Mom** taps the card → **See a heart doctor** → **I booked it** → picks a time → **Save** | The card flips that step to **Booked**, plus a calendar invite in the chat. *(Optional: or tap "What to say" and go back.)* |
+| 3 | **Mom** taps the card → **See primary care doctor** → **I booked it** → picks a time → **Save** | The card flips that step to **Booked**, plus a calendar invite in the chat. *(Use the primary care visit here: photo 3 books the heart doctor later.)* |
 | 4 | **Mom** texts: *add my daughter Tvisha* + Tvisha's number, then votes **Everything** in the poll | **Tvisha's phone**: an intro from Juno, Mom's list, and a **care plan link** with a preview image. Tvisha can open it. |
 | 5 | **Controls → Skip 2 days** | Mom gets **reminder 1** (fasting blood test). **Open Mom's chat** so it shows *Read*. |
 | 6 | Wait about a minute. **Controls → Skip 1 day** | **Reminder 2.** **Open Mom's chat.** About 10 s later **Tvisha's phone** gets the heads-up: *"your mom hasn't booked her fasting blood test… She's seen my reminders"*. |
 | 7 | **Tvisha** taps ❤️ on that message, then texts *booked it Thu 9am* | ❤️ → *"Thank you 💜 When it's booked…"*. After the text: Mom's card shows **Booked · Tvisha**, Mom gets *"Tvisha booked your fasting blood test…"* + a calendar invite, Tvisha gets a thank-you. |
 | 8 | **Tvisha** asks: *when is mom's blood test?* | "📅 Her fasting blood test is Thu, Oct 15 at 9:00 AM at Peachtree Labs. You booked it 💜" |
-| 9 | **Mom** sends photo 4 (lab results) → taps **Kidneys** → **Full view** | Lab message + **body-map card** → range bars → Juno sends the full view as a link (with a preview image) → it opens an animated lab page with *Questions for Dr. Chen*. |
-| 10 | **Mom** asks: *what was my potassium?* | "Your potassium: 3.3 mmol/L (range 3.5–5.1), a little low compared with the printed range. Dr. Chen can explain…" |
-| 11 | End on the dashboard | The feed shows every step, each tagged with the Spectrum feature behind it. |
+| 9 | **Mom** sends photo 3 (the appointment reminder card) | Juno reads it and books the **heart doctor visit**, Tue, Oct 20 at 2:00 PM: card updates + calendar invite. *("She just snaps the reminder card.")* |
+| 10 | **Mom** sends photo 4 (lab results) → taps **Kidneys** → **Full view** | Lab message + **body-map card** → range bars → Juno sends the full view as a link (with a preview image) → it opens an animated lab page with *Questions for Dr. Chen*. |
+| 11 | **Mom** asks: *what was my potassium?* | "Your potassium: 3.3 mmol/L (range 3.5–5.1), a little low compared with the printed range. Dr. Chen can explain…" |
+| 12 | End on the dashboard | The feed shows every step, each tagged with the Spectrum feature behind it. |
 
 Other things Juno understands, if you want extra shots: *what is Eliquis for?*, *what's my next appointment?*, *show me my list*, *show my plan*, *what are my warning signs?*. Saying a symptom like *I have chest pain* gets a "call 911" reply and alerts Tvisha (good for a 3-second safety shot; not required).
 
@@ -78,6 +79,7 @@ Other things Juno understands, if you want extra shots: *what is Eliquis for?*, 
 | 1:15 | Skip → reminder 1 → read → skip → reminder 2 → read | *Proactive messages (max 2) · read receipts* |
 | 1:30 | Tvisha's heads-up, ❤️, "booked it Thu 9am", Mom's card updates | *Read receipts drive the escalation · tapback as input · edit in place* |
 | 1:50 | Tvisha asks "when is mom's blood test?" | *An agent you can just ask* |
+| 1:55 | Mom snaps the appointment card (photo 3) | *Attachment → read → card edit + .ics* |
 | 2:00 | Lab photo → body map → organ → full view | *Interactive live card → rich link to the full page* |
 | 2:20 | Closing card | see below |
 
