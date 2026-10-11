@@ -11,6 +11,20 @@ Everything needed to run the demo and record the submission video, without touch
 | **Juno** | The agent | Runs on Nikhilesh's laptop |
 | **Dashboard** | "Juno's brain": live feed, photo reading, care board | Any laptop, through a private link |
 
+## The demo photos
+
+All four are fictional and live in [`docs/photos/`](photos). They're already in Mom's camera roll; if not, AirDrop them from that folder. The camera roll doesn't show file names, so here's how to tell them apart:
+
+| Photo | File | What it is | How it looks on the phone |
+|---|---|---|---|
+| **1** | [`1-discharge-page1.jpg`](photos/1-discharge-page1.jpg) | Discharge papers, page 1: diagnoses, medicine table, follow-up table | Paper on a wooden table, header *AFTER VISIT SUMMARY — DISCHARGE INSTRUCTIONS* |
+| **2** | [`2-discharge-page2.jpg`](photos/2-discharge-page2.jpg) | Discharge papers, page 2: warning signs, activity, diet | Same paper style, a **red box** near the top (*CALL 911…*) and lots of blank space at the bottom |
+| **3** | [`3-appointment-card.jpg`](photos/3-appointment-card.jpg) | Appointment reminder card: Peachtree Heart Associates, **Tue Oct 20, 2:00 PM**, Dr. Okafor | A small card with a **dark-red border**, not a full page |
+| **4** | [`4-lab-results.jpg`](photos/4-lab-results.jpg) | Lab report: 24 results, collected Oct 15 | Full page, green *PEACHTREE LABS* header, typewriter-style font |
+
+- Send **1 and 2 together** (select both, one send). They're the ones that create the to-dos, so they always go first.
+- Send the original photos, not screenshots or edited copies: Juno has already read these exact files, so they're instant and use no AI quota.
+
 ## What runs where (important)
 
 - **Juno runs on Nikhilesh's laptop only.** Keep it plugged in and awake. Never start a second copy: two copies would both answer every message.
