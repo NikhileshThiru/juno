@@ -13,6 +13,11 @@ if (cmd === "skip") {
   resetAll();
   console.log("🧹 Reset: no documents, to-dos, care circle, or reminders; clock back to now.");
   console.log("   Next: delete the Juno chat on both phones and reload localhost:3000/brain.");
+} else if (cmd === "links") {
+  const { brainKey } = await import("../src/web/brain.ts");
+  const base = (await Bun.file("data/tunnel-url").text()).trim();
+  console.log(`Dashboard (private, send only to your teammate): ${base}/brain?key=${brainKey()}`);
+  console.log(`Controls  (private, keep off-camera):           ${base}/brain/controls?key=${brainKey()}`);
 } else {
   console.log(`🕐 ${fmtWhen(now())}`);
   for (const t of db.query("SELECT * FROM todos ORDER BY user_id, sort").all() as Todo[])

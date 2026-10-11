@@ -3,7 +3,7 @@
 // Answers come from the patient's own plan and papers, locally and instantly
 // when possible; Gemini only for questions the patterns can't place. Juno never
 // diagnoses or recommends changes, and lab answers only compare to the printed range.
-import { fmtShort, fmtWhen, now } from "./clock.ts";
+import { fmtAt, fmtShort, fmtWhen, now } from "./clock.ts";
 import { caregiversOf, getUser, latestDoc, todosFor, type Todo } from "./db.ts";
 import { answerQuestion, type Discharge, type Labs } from "./gemini.ts";
 import { bandOf, direction, group, ORGANS, organOf, type Organ, type Test } from "./labs.ts";
@@ -40,6 +40,8 @@ const EMERGENCY =
 
 type Ctx = {
   family: boolean;
+  /** Who is asking (the caregiver's handle), so "booked by" can read "you". */
+  asker: string | null;
   name: string;
   todos: Todo[];
   meds: Discharge["medications"];
@@ -48,12 +50,13 @@ type Ctx = {
   helpers: Map<string, string>;
 };
 
-function context(patientId: string, family: boolean): Ctx {
+function context(patientId: string, family: boolean, asker: string | null): Ctx {
   const discharge = latestDoc(patientId, "discharge");
   const lab = latestDoc(patientId, "lab");
   const d = discharge ? (JSON.parse(discharge.extracted_json) as Discharge) : null;
   return {
     family,
+    asker,
     name: getUser(patientId)?.name ?? "your mom",
     todos: todosFor(patientId),
     meds: d?.medications ?? [],
@@ -168,7 +171,7 @@ function localAnswer(text: string, c: Ctx): string | null {
   }
   if (!todo) return null;
   const where = [todo.clinic, todo.provider].filter(Boolean).join(" (") + (todo.clinic && todo.provider ? ")" : "");
-  const helper = todo.booked_by && todo.booked_by !== "self" ? c.helpers.get(todo.booked_by) : null;
+  const helper = todo.booked_by && todo.booked_by !== "self" ? (todo.booked_by === c.asker ? "You" : c.helpers.get(todo.booked_by)) : null;
   const title = thing(todo);
   if (/\b(number|phone|call)\b/.test(t)) return todo.phone ? `${todo.clinic ?? todo.title}: ${todo.phone}` : `I don't see a phone number for the ${title} in the papers.`;
   if (/\b(bring|prep|prepare|eat|drink|fast|fasting|before)\b/.test(t))
@@ -176,7 +179,7 @@ function localAnswer(text: string, c: Ctx): string | null {
   if (/\bwhere|address|location\b/.test(t)) return where ? `The ${title} is at ${where}.` : `The papers don't say where the ${title} is.`;
   if (todo.status === "done") return `✅ ${p.Your} ${title} is already done.`;
   if (todo.status === "booked")
-    return `📅 ${p.Your} ${title} is **${fmtWhen(todo.appt_at!)}**${where ? ` at ${where}` : ""}.${helper ? ` ${helper} booked it 💜` : ""}${todo.prep ? `\n\nRemember: ${todo.prep}` : ""}`;
+    return `📅 ${p.Your} ${title} is **${fmtAt(todo.appt_at!)}**${where ? ` at ${where}` : ""}.${helper ? ` ${helper} booked it 💜` : ""}${todo.prep ? `\n\nRemember: ${todo.prep}` : ""}`;
   return `${p.You} ${c.family ? "hasn't" : "haven't"} booked ${p.your} ${title} yet${todo.due_at ? `. It should happen by **${fmtShort(todo.due_at)}**` : ""}.${todo.phone ? `\n\n${todo.clinic ?? "Call"}: ${todo.phone}` : ""}${c.family ? "" : "\n\nWhen you book it, just text me the day and time."}`;
 }
 
@@ -185,8 +188,8 @@ export type Asked = { text: string; emergency: boolean };
 /** A message describing a warning-sign symptom right now (not a question about what one means). */
 export const isEmergency = (text: string) => EMERGENCY.test(text) && !/\bwhat (is|are|does)|warning/i.test(text);
 
-export async function answer(patientId: string, question: string, family: boolean): Promise<Asked> {
-  const c = context(patientId, family);
+export async function answer(patientId: string, question: string, family: boolean, asker: string | null = null): Promise<Asked> {
+  const c = context(patientId, family, asker);
   if (isEmergency(question)) {
     const who = family ? `If ${c.name} has that right now, call 911` : "If you're having that right now, please call 911";
     return { text: `🚨 ${who} or go to the nearest emergency room. That's on the warning-signs list from the hospital.`, emergency: true };

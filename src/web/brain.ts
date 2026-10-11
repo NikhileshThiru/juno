@@ -3,18 +3,31 @@
 // board (To do / Booked / Done). Localhost only; phone numbers never reach it.
 import { Hono, type Context, type Next } from "hono";
 import { html, raw } from "hono/html";
+import { getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
-import { fmtShort, fmtWhen, now, offsetMs } from "../clock.ts";
-import { caregiversOf, db, getSetting, todosFor, type Doc, type User } from "../db.ts";
+import { DAY, fmtShort, fmtWhen, now, offsetMs, skip } from "../clock.ts";
+import { caregiversOf, db, getSetting, resetAll, todosFor, type Doc, type User } from "../db.ts";
+import { tick } from "../flows/nudges.ts";
+import { log } from "../log.ts";
 import { counters, recentEvents, subscribe, type FeedEvent } from "../events.ts";
 import { bandOf } from "../labs.ts";
 import { json } from "./tracker.ts";
 
 export const brain = new Hono();
 
-/** The dashboard and its data are for the laptop only, never through the tunnel. */
+/** Secret for remote access (a teammate recording on another laptop). Derived, so there's nothing to configure. */
+export const brainKey = () =>
+  new Bun.CryptoHasher("sha256").update(`juno-brain:${process.env.SPECTRUM_PROJECT_SECRET}`).digest("base64url").slice(0, 24);
+
+/**
+ * The dashboard is for the laptop running Juno, or for whoever has the private
+ * link (?key=…, remembered in a cookie). Everyone else gets a 404.
+ */
 export async function localOnly(c: Context, next: Next) {
-  if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(c.req.header("host") ?? "")) return c.text("Not found", 404);
+  const local = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(c.req.header("host") ?? "");
+  const key = c.req.query("key");
+  if (!local && key !== brainKey() && getCookie(c, "juno_brain") !== brainKey()) return c.text("Not found", 404);
+  if (key === brainKey()) setCookie(c, "juno_brain", key, { httpOnly: true, secure: true, sameSite: "Lax", path: "/", maxAge: 60 * 60 * 24 * 7 });
   await next();
 }
 brain.use("/brain", localOnly);
@@ -152,6 +165,57 @@ function state() {
 }
 
 brain.get("/brain/state", (c) => c.json(state()));
+
+// ---- remote controls (off-camera window for whoever runs the demo) ---------
+
+brain.post("/brain/api/skip", async (c) => {
+  const { days } = (await c.req.json().catch(() => ({}))) as { days?: number };
+  if (!days || days < 0 || days > 14) return c.text("bad days", 400);
+  skip(days * DAY);
+  log("⏩", `clock → ${fmtWhen(now())}`);
+  await tick();
+  return c.json({ now: fmtWhen(now()) });
+});
+
+brain.post("/brain/api/reset", (c) => {
+  resetAll();
+  log("🧹", "reset");
+  return c.json({ ok: true });
+});
+
+brain.get("/brain/controls", (c) =>
+  c.html(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Juno · demo controls</title>
+  <style>
+    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0c0d14; color:#eef0f7; font:16px -apple-system, sans-serif; }
+    main { width:min(420px, 92vw); display:flex; flex-direction:column; gap:12px; }
+    h1 { font-size:20px; margin:0 0 4px; } p { color:#9aa3b8; margin:0; font-size:14px; }
+    button { height:56px; border:0; border-radius:14px; font:700 17px -apple-system, sans-serif; color:#fff; cursor:pointer; background:linear-gradient(135deg,#5b6cff,#8b5cf6); }
+    button.reset { background:#2a2d36; } button:disabled { opacity:.5; }
+    #out { min-height:22px; font-weight:600; color:#c4b5fd; }
+  </style></head><body><main>
+    <h1>Juno · demo controls</h1>
+    <p>Keep this window off-camera. The clock moves for reminders; reset starts a clean run.</p>
+    <button data-days="2">⏩ Skip 2 days (reminder 1)</button>
+    <button data-days="1">⏩ Skip 1 day (reminder 2 → family heads-up)</button>
+    <button class="reset" data-reset="1">🧹 Reset for a new run</button>
+    <div id="out"></div>
+    <p>After a reset: delete the Juno chat on both phones, then reload the dashboard.</p>
+  </main><script>
+    var out = document.getElementById("out");
+    document.querySelectorAll("button").forEach(function (b) {
+      b.onclick = function () {
+        if (b.dataset.reset && !confirm("Reset everything for a new run?")) return;
+        b.disabled = true; out.textContent = "…";
+        fetch(b.dataset.reset ? "/brain/api/reset" : "/brain/api/skip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ days: +b.dataset.days }) })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { out.textContent = j.now ? "Now " + j.now + " (reminder arrives within ~10s)" : "Reset ✓ Delete both chats, then reload the dashboard."; })
+          .catch(function () { out.textContent = "Couldn't reach Juno. Is the laptop running it awake?"; })
+          .finally(function () { b.disabled = false; });
+      };
+    });
+  </script></body></html>`),
+);
 
 // Snapshot of the feed (screenshots use ?still: headless browsers wait on open streams).
 brain.get("/brain/recent", (c) => c.json(recentEvents().slice(-40).map(present).filter(Boolean)));
@@ -297,5 +361,7 @@ const BRAIN_JS = String.raw`
   var es = new EventSource("/brain/events");
   es.onmessage = function (m) { add(JSON.parse(m.data)); setTimeout(refresh, 250); };
   setInterval(refresh, 3000);
+  // Viewers over the tunnel: also poll the feed in case a proxy buffers the stream.
+  setInterval(function () { fetch("/brain/recent").then(function (r) { return r.json(); }).then(function (l) { l.forEach(add); }).catch(function () {}); }, 3000);
 })();
 `;

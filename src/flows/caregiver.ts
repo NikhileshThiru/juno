@@ -82,7 +82,7 @@ export async function notifyCaregivers(patientId: string, ev: CareEvent, except?
 export async function handleCaregiverText(caregiverId: string, text: string) {
   const patientId = patientsOf(caregiverId)[0]?.patient_id;
   if (!patientId) return;
-  if (isEmergency(text)) return say(caregiverId, (await answer(patientId, text, true)).text);
+  if (isEmergency(text)) return say(caregiverId, (await answer(patientId, text, true, caregiverId)).text);
   const open = todosFor(patientId).filter((t) => t.status !== "done");
   const brief = open.map((t) => ({ id: t.id, title: t.title, clinic: t.clinic, status: t.status, category: t.category }));
   const intent = await understand(text, brief, "caregiver (a family member helping the patient)");
@@ -104,7 +104,7 @@ export async function handleCaregiverText(caregiverId: string, text: string) {
   if (intent.intent === "done" && todo) return applyDone(patientId, todo.id, caregiverId);
   if (intent.intent === "status") return say(caregiverId, copy.cgSummary(momFor(patientId, caregiverId), todosFor(patientId)));
   if (intent.intent === "show") return send(caregiverId, richlink(`${publicBaseUrl()}/plan/${tokenFor(patientId)}?as=family`));
-  if (intent.intent === "question") return say(caregiverId, (await answer(patientId, text, true)).text);
+  if (intent.intent === "question") return say(caregiverId, (await answer(patientId, text, true, caregiverId)).text);
   if (intent.intent === "thanks") return say(caregiverId, copy.thanks);
   return say(caregiverId, copy.cgDefault(momFor(patientId, caregiverId)));
 }
